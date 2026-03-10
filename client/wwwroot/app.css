@@ -49,3 +49,86 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+.hero-panel {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    border-radius: 1.5rem;
+    background: linear-gradient(135deg, #f7f1e7 0%, #fffaf3 55%, #efe3d2 100%);
+    border: 1px solid #e2d4c2;
+    margin-bottom: 2rem;
+}
+
+.eyebrow {
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.8rem;
+    color: #8b5e34;
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.home-grid,
+.inspection-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.home-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.info-card,
+.inspection-card,
+.empty-state {
+    border: 1px solid #e5e5e5;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 18px 40px rgba(42, 30, 18, 0.06);
+}
+
+.info-card,
+.empty-state {
+    padding: 1.25rem;
+}
+
+.inspection-form {
+    max-width: 680px;
+}
+
+.inspection-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.inspection-card {
+    overflow: hidden;
+}
+
+.inspection-preview {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: #f5f5f5;
+}
+
+.inspection-card-body {
+    padding: 1rem;
+}
+
+.inspection-meta dt,
+.inspection-meta dd {
+    margin-bottom: 0.35rem;
+}
+
+@media (max-width: 768px) {
+    .hero-panel {
+        padding: 1.25rem;
+    }
+}

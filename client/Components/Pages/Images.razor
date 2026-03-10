@@ -1,0 +1,145 @@
+@page "/images"
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using client.Data
+@using client.Data.Entities
+@using client.Services
+@attribute [Authorize]
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject InspectionWorkflowService WorkflowService
+@inject InspectionUrlBuilder UrlBuilder
+
+<PageTitle>Uploaded Images</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="mb-1">Uploaded images</h1>
+        <p class="text-muted mb-0">Only your uploads are listed here.</p>
+    </div>
+    <a href="/images/upload" class="btn btn-primary">Upload new image</a>
+</div>
+
+@if (isLoading)
+{
+    <p>Loading uploaded images...</p>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <div class="alert alert-danger" role="alert">@loadError</div>
+}
+else if (images.Count == 0)
+{
+    <div class="empty-state">
+        <h2>No uploads yet</h2>
+        <p>Start by uploading an inspection image.</p>
+        <a href="/images/upload" class="btn btn-primary">Upload image</a>
+    </div>
+}
+else
+{
+    <div class="inspection-grid">
+        @foreach (var image in images)
+        {
+            <section class="inspection-card">
+                <img src="@UrlBuilder.BuildImageUrl(image)" alt="@image.OriginalFileName" class="inspection-preview" />
+                <div class="inspection-card-body">
+                    <div class="d-flex justify-content-between gap-3 align-items-start">
+                        <div>
+                            <h2 class="h5 mb-1">@image.OriginalFileName</h2>
+                            <div class="text-muted small">@image.CreatedAtUtc.LocalDateTime.ToString("g")</div>
+                        </div>
+                        <span class="badge rounded-pill @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(image.Description))
+                    {
+                        <p class="mt-3 mb-3">@image.Description</p>
+                    }
+
+                    <dl class="row small mb-0 inspection-meta">
+                        <dt class="col-6">Processing</dt>
+                        <dd class="col-6">@image.ProcessingStatus</dd>
+
+                        <dt class="col-6">Tolerance</dt>
+                        <dd class="col-6">@image.TolerancePercent.ToString("0.##")%</dd>
+
+                        <dt class="col-6">Min similarity</dt>
+                        <dd class="col-6">@image.MinimumSimilarityPercent.ToString("0.##")%</dd>
+
+                        <dt class="col-6">Similarity</dt>
+                        <dd class="col-6">@(image.SimilarityPercent?.ToString("0.##") + "%" ?? "Pending")</dd>
+
+                        <dt class="col-6">Defects</dt>
+                        <dd class="col-6">@GetDefectCountLabel(image.DefectsJson)</dd>
+                    </dl>
+
+                    @if (!string.IsNullOrWhiteSpace(image.FailureReason))
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">@image.FailureReason</div>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private readonly List<InspectionImage> images = [];
+    private bool isLoading = true;
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User)
+                ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+
+            images.Clear();
+            images.AddRange(await WorkflowService.GetUserImagesAsync(user.Id, CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string GetOutcomeBadgeClass(OutcomeStatus status) => status switch
+    {
+        OutcomeStatus.Valid => "text-bg-success",
+        OutcomeStatus.ValidWithDefects => "text-bg-warning",
+        OutcomeStatus.Invalid => "text-bg-danger",
+        _ => "text-bg-secondary"
+    };
+
+    private static string GetDefectCountLabel(string? defectsJson)
+    {
+        if (string.IsNullOrWhiteSpace(defectsJson))
+        {
+            return "Pending";
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(defectsJson);
+            if (node is JsonArray array)
+            {
+                return array.Count == 0 ? "None" : array.Count.ToString();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return "Invalid";
+    }
+}

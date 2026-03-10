@@ -1,7 +1,39 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Label Inspection Portal</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="hero-panel">
+    <div>
+        <p class="eyebrow">Automated quality control</p>
+        <h1>Label inspection portal</h1>
+        <p class="lead">Upload manufacturing label images, send them to the ML service asynchronously, and review similarity and defect outcomes in one place.</p>
+    </div>
 
-Welcome to your new app.
+    <div class="hero-actions">
+        <AuthorizeView>
+            <Authorized>
+                <a href="/images/upload" class="btn btn-primary btn-lg">Upload image</a>
+                <a href="/images" class="btn btn-outline-secondary btn-lg">View my uploads</a>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/Account/Login" class="btn btn-primary btn-lg">Sign in</a>
+                <a href="/Account/Register" class="btn btn-outline-secondary btn-lg">Create account</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</div>
+
+<div class="home-grid">
+    <section class="info-card">
+        <h2>Upload contract</h2>
+        <p>Each submission includes an image file, tolerance percent, and optional description. The app stores the file locally and exposes a public image URL for the ML service.</p>
+    </section>
+    <section class="info-card">
+        <h2>Async processing</h2>
+        <p>The ML service receives <code>image_url</code>, <code>callback_url</code>, and <code>image_id</code>, then posts similarity and defect results back through a shared-secret webhook.</p>
+    </section>
+    <section class="info-card">
+        <h2>Outcome rule</h2>
+        <p>Tolerance is interpreted as allowed deviation from perfect similarity. A tolerance of 20 means the image is accepted at 80% similarity or higher.</p>
+    </section>
+</div>

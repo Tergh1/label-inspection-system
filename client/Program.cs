@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using client.Components;
 using client.Components.Account;
 using client.Data;
+using client.Endpoints;
+using client.Options;
+using client.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,12 +32,23 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
+builder.Services.Configure<InspectionStorageOptions>(builder.Configuration.GetSection(InspectionStorageOptions.SectionName));
+builder.Services.Configure<InspectionMlOptions>(builder.Configuration.GetSection(InspectionMlOptions.SectionName));
+
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddScoped<InspectionWorkflowService>();
+builder.Services.AddScoped<InspectionFileStorage>();
+builder.Services.AddScoped<InspectionUrlBuilder>();
+builder.Services.AddHttpClient<MlInspectionClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<InspectionMlOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+});
 
 var app = builder.Build();
 
@@ -59,5 +74,7 @@ app.MapRazorComponents<App>()
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
+app.MapInspectionFileEndpoints();
+app.MapMlWebhookEndpoints();
 
 app.Run();

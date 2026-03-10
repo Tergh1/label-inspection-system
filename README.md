@@ -73,7 +73,7 @@ var request = new MultipartFormDataContent();
 request.Add(new StringContent(imageUrl), "image_url");
 request.Add(new StringContent(WebhookUrl), "callback_url");
 request.Add(new StringContent(ImageId), "image_id");
-request.Headers.Add("Authorization", $"Bearer {ApiKey}");
+request.Headers.Add("X-API-KEY", ApiKey);
 
 await Http.PostAsync("http://ml-service:8000/inspect-async", request);
 ```
@@ -128,7 +128,7 @@ await Http.PostAsync("http://ml-service:8000/inspect-async", request);
 
 |Header	|Value|	Description|
 |----|---| ---|
-|Authorization|	Bearer <API_KEY>|	API key for authentication|
+|X-API-KEY|	<API_KEY>|	API key for authentication|
 
 **Response (immediate):**
 ```JSON

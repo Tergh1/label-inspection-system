@@ -1,0 +1,147 @@
+@page "/images/upload"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using client.Data
+@using client.Options
+@using client.Services
+@attribute [Authorize]
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject InspectionWorkflowService WorkflowService
+@inject IOptions<InspectionStorageOptions> StorageOptions
+
+<PageTitle>Upload Image</PageTitle>
+
+<h1>Upload inspection image</h1>
+<p class="text-muted">Submit an image, tolerance percent, and optional description. The ML service will download the public image URL and update the result asynchronously.</p>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">
+        @statusMessage
+    </div>
+}
+
+<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" class="inspection-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label" for="inspection-file">Image file</label>
+        <InputFile id="inspection-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" />
+        @if (selectedFile is not null)
+        {
+            <div class="form-text">
+                Selected: @selectedFile.Name (@FormatBytes(selectedFile.Size))
+            </div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="tolerance">Tolerance percent</label>
+        <InputNumber id="tolerance" @bind-Value="model.TolerancePercent" class="form-control" />
+        <div class="form-text">Example: 20 means the final result is accepted from 80% to 100% similarity.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="description">Description</label>
+        <InputTextArea id="description" @bind-Value="model.Description" class="form-control" rows="4" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+        @(isSubmitting ? "Uploading..." : "Upload image")
+    </button>
+    <a href="/images" class="btn btn-link">View uploaded images</a>
+</EditForm>
+
+@code {
+    private readonly UploadImageModel model = new() { TolerancePercent = 20m };
+    private IBrowserFile? selectedFile;
+    private bool isSubmitting;
+    private bool isError;
+    private string? statusMessage;
+
+    private void HandleFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.FileCount > 0 ? args.File : null;
+        statusMessage = null;
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (selectedFile is null)
+        {
+            isError = true;
+            statusMessage = "Please select an image file.";
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User)
+                ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+
+            await using var fileStream = selectedFile.OpenReadStream(StorageOptions.Value.MaxFileSizeBytes);
+            var inspection = await WorkflowService.CreateAsync(
+                user.Id,
+                selectedFile.Name,
+                selectedFile.ContentType,
+                selectedFile.Size,
+                fileStream,
+                model.TolerancePercent,
+                model.Description,
+                CancellationToken.None);
+
+            isError = false;
+            statusMessage = inspection.ProcessingStatus == client.Data.Entities.ProcessingStatus.Failed
+                ? $"Image stored, but ML dispatch failed: {inspection.FailureReason}"
+                : "Image uploaded and queued for ML processing.";
+
+            selectedFile = null;
+            model.Description = null;
+            model.TolerancePercent = 20m;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        var kilobytes = bytes / 1024d;
+        if (kilobytes < 1024)
+        {
+            return $"{kilobytes:F1} KB";
+        }
+
+        return $"{kilobytes / 1024d:F1} MB";
+    }
+
+    private sealed class UploadImageModel
+    {
+        [Range(0, 100)]
+        public decimal TolerancePercent { get; set; }
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+    }
+}
