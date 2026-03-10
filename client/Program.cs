@@ -41,6 +41,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddSingleton<InspectionUpdateNotifier>();
 builder.Services.AddScoped<InspectionWorkflowService>();
 builder.Services.AddScoped<InspectionFileStorage>();
 builder.Services.AddScoped<InspectionUrlBuilder>();

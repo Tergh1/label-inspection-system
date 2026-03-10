@@ -3,6 +3,7 @@ using client.Contracts;
 using client.Data;
 using client.Data.Entities;
 using client.Options;
+using client.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -19,6 +20,7 @@ public static class MlWebhookEndpoints
             HttpContext httpContext,
             MlWebhookResult payload,
             ApplicationDbContext dbContext,
+            InspectionUpdateNotifier inspectionUpdateNotifier,
             IOptions<InspectionMlOptions> runtimeOptions,
             CancellationToken cancellationToken) =>
         {
@@ -49,6 +51,7 @@ public static class MlWebhookEndpoints
                 inspectionImage.OutcomeStatus = OutcomeStatus.Pending;
                 inspectionImage.FailureReason = failureReason;
                 await dbContext.SaveChangesAsync(cancellationToken);
+                await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
                 return Results.Ok(new { status = "updated" });
             }
 
@@ -56,6 +59,7 @@ public static class MlWebhookEndpoints
             {
                 inspectionImage.ProcessingStatus = ProcessingStatus.Processing;
                 await dbContext.SaveChangesAsync(cancellationToken);
+                await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
                 return Results.Ok(new { status = "updated" });
             }
 
@@ -66,16 +70,18 @@ public static class MlWebhookEndpoints
 
             if (payload.SimilarityPercent.HasValue)
             {
-                inspectionImage.OutcomeStatus = payload.SimilarityPercent.Value >= inspectionImage.MinimumSimilarityPercent
+                var isValid = payload.SimilarityPercent.Value >= inspectionImage.MinimumSimilarityPercent;
+                inspectionImage.OutcomeStatus = isValid
                     ? OutcomeStatus.Valid
                     : OutcomeStatus.Invalid;
 
-                inspectionImage.OutcomeStatus = payload.Defects is not null && payload.Defects.Count > 0
+                inspectionImage.OutcomeStatus = isValid && payload.Defects is not null && payload.Defects.Count > 0
                     ? OutcomeStatus.ValidWithDefects
                     : inspectionImage.OutcomeStatus;
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
             return Results.Ok(new { status = "updated" });
         });
 

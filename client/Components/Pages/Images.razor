@@ -13,6 +13,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JSRuntime
 @inject UserManager<ApplicationUser> UserManager
+@inject InspectionUpdateNotifier InspectionUpdateNotifier
 @inject InspectionWorkflowService WorkflowService
 @inject InspectionUrlBuilder UrlBuilder
 
@@ -257,6 +258,7 @@ else
     private Guid? openMenuImageId;
     private ElementReference defectImageElement;
     private DotNetObjectReference<Images>? defectModalDotNetReference;
+    private IDisposable? inspectionUpdateSubscription;
     private InspectionImage? imageShowingDefects;
     private InspectionImage? imagePendingDelete;
     private ImageDimensions? defectImageDimensions;
@@ -264,6 +266,7 @@ else
     private int pageSize = 10;
     private int currentPage = 1;
     private bool defectModalNeedsImageDimensions;
+    private string? currentUserId;
 
     private IEnumerable<InspectionImage> PagedImages => images
         .Skip((currentPage - 1) * pageSize)
@@ -278,6 +281,9 @@ else
     {
         try
         {
+            var user = await ResolveCurrentUserAsync();
+            currentUserId = user.Id;
+            inspectionUpdateSubscription = InspectionUpdateNotifier.Subscribe(currentUserId, HandleInspectionUpdatedAsync);
             await LoadImagesAsync();
         }
         catch (Exception ex)
@@ -292,12 +298,10 @@ else
 
     private async Task LoadImagesAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(authState.User)
-            ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+        var userId = currentUserId ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
 
         images.Clear();
-        images.AddRange(await WorkflowService.GetUserImagesAsync(user.Id, CancellationToken.None));
+        images.AddRange(await WorkflowService.GetUserImagesAsync(userId, CancellationToken.None));
         currentPage = Math.Min(currentPage, TotalPages);
         currentPage = Math.Max(currentPage, 1);
     }
@@ -350,8 +354,7 @@ else
 
         try
         {
-            var user = await GetCurrentUserAsync();
-            await WorkflowService.DeleteAsync(user.Id, imagePendingDelete.Id, CancellationToken.None);
+            await WorkflowService.DeleteAsync(GetCurrentUserId(), imagePendingDelete.Id, CancellationToken.None);
 
             images.RemoveAll(x => x.Id == imagePendingDelete.Id);
             currentPage = Math.Min(currentPage, TotalPages);
@@ -378,8 +381,7 @@ else
 
         try
         {
-            var user = await GetCurrentUserAsync();
-            var updatedImage = await WorkflowService.RedispatchFailedAsync(user.Id, image.Id, CancellationToken.None);
+            var updatedImage = await WorkflowService.RedispatchFailedAsync(GetCurrentUserId(), image.Id, CancellationToken.None);
             ReplaceImage(updatedImage);
             isError = updatedImage.ProcessingStatus == ProcessingStatus.Failed;
             statusMessage = updatedImage.ProcessingStatus == ProcessingStatus.Failed
@@ -447,8 +449,19 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        inspectionUpdateSubscription?.Dispose();
         defectModalDotNetReference?.Dispose();
         await JSRuntime.InvokeVoidAsync("inspectionDefectViewer.unregisterEscapeHandler");
+    }
+
+    private async Task HandleInspectionUpdatedAsync(InspectionUpdateNotification notification)
+    {
+        await InvokeAsync(async () =>
+        {
+            var updatedImage = await WorkflowService.GetUserImageAsync(GetCurrentUserId(), notification.ImageId, CancellationToken.None);
+            SyncImage(updatedImage, notification.ImageId);
+            StateHasChanged();
+        });
     }
 
     private void ReplaceImage(InspectionImage updatedImage)
@@ -460,11 +473,57 @@ else
         }
     }
 
-    private async Task<ApplicationUser> GetCurrentUserAsync()
+    private void SyncImage(InspectionImage? updatedImage, Guid imageId)
+    {
+        if (updatedImage is null)
+        {
+            images.RemoveAll(x => x.Id == imageId);
+
+            if (openMenuImageId == imageId)
+            {
+                openMenuImageId = null;
+            }
+
+            if (imagePendingDelete?.Id == imageId)
+            {
+                imagePendingDelete = null;
+            }
+
+            if (imageShowingDefects?.Id == imageId)
+            {
+                CloseDefectsModal();
+            }
+        }
+        else
+        {
+            ReplaceImage(updatedImage);
+
+            if (imagePendingDelete?.Id == updatedImage.Id)
+            {
+                imagePendingDelete = updatedImage;
+            }
+
+            if (imageShowingDefects?.Id == updatedImage.Id)
+            {
+                imageShowingDefects = updatedImage;
+                defects = ParseDefects(updatedImage.DefectsJson);
+            }
+        }
+
+        currentPage = Math.Min(currentPage, TotalPages);
+        currentPage = Math.Max(currentPage, 1);
+    }
+
+    private async Task<ApplicationUser> ResolveCurrentUserAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         return await UserManager.GetUserAsync(authState.User)
             ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+    }
+
+    private string GetCurrentUserId()
+    {
+        return currentUserId ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
     }
 
     private void HandlePageSizeChanged(ChangeEventArgs args)
