@@ -50,6 +50,57 @@ public sealed class InspectionWorkflowService(
         dbContext.InspectionImages.Add(inspectionImage);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await DispatchAsync(inspectionImage, cancellationToken);
+
+        return inspectionImage;
+    }
+
+    public async Task<IReadOnlyList<InspectionImage>> GetUserImagesAsync(string ownerUserId, CancellationToken cancellationToken)
+    {
+        return await dbContext.InspectionImages
+            .AsNoTracking()
+            .Where(x => x.OwnerUserId == ownerUserId)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
+    {
+        var inspectionImage = await dbContext.InspectionImages
+            .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken)
+            ?? throw new InvalidOperationException("Image not found.");
+
+        dbContext.InspectionImages.Remove(inspectionImage);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        fileStorage.Delete(inspectionImage.StoredRelativePath);
+    }
+
+    public async Task<InspectionImage> RedispatchFailedAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
+    {
+        var inspectionImage = await dbContext.InspectionImages
+            .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken)
+            ?? throw new InvalidOperationException("Image not found.");
+
+        if (inspectionImage.ProcessingStatus != ProcessingStatus.Failed)
+        {
+            throw new InvalidOperationException("Only failed images can be inspected again.");
+        }
+
+        inspectionImage.ProcessingStatus = ProcessingStatus.PendingDispatch;
+        inspectionImage.OutcomeStatus = OutcomeStatus.Pending;
+        inspectionImage.SimilarityPercent = null;
+        inspectionImage.DefectsJson = null;
+        inspectionImage.FailureReason = null;
+        inspectionImage.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await DispatchAsync(inspectionImage, cancellationToken);
+        return inspectionImage;
+    }
+
+    private async Task DispatchAsync(InspectionImage inspectionImage, CancellationToken cancellationToken)
+    {
         try
         {
             await mlInspectionClient.DispatchAsync(
@@ -69,16 +120,5 @@ public sealed class InspectionWorkflowService(
 
         inspectionImage.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-
-        return inspectionImage;
-    }
-
-    public async Task<IReadOnlyList<InspectionImage>> GetUserImagesAsync(string ownerUserId, CancellationToken cancellationToken)
-    {
-        return await dbContext.InspectionImages
-            .AsNoTracking()
-            .Where(x => x.OwnerUserId == ownerUserId)
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
     }
 }
