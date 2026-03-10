@@ -167,3 +167,60 @@ Example Callback Payload:
   ]
 }
 ```
+## Machine Learning Pipeline
+
+The service follows the following ML workflow:
+
+1. Image Download
+
+The service downloads the image from the provided URL.
+
+2. Feature Extraction
+
+A pretrained ResNet50 convolutional neural network extracts deep features from the image.
+
+3. Similarity Calculation
+
+Cosine similarity is calculated between:
+```
+template_features
+vs
+uploaded_image_features
+```
+The result is converted to a percentage similarity score.
+
+4. Defect Detection
+
+Pixel-level comparison identifies regions where the inspected image differs significantly from the template.
+
+Detected defect areas are returned as bounding boxes.
+
+### Template Image
+
+The template image represents the correct product label.
+
+It is stored locally:
+
+models/template.jpg
+
+During service startup:
+
+The template image is loaded
+
+Feature vectors are extracted
+
+Features are cached in memory
+
+This ensures high performance inference.
+
+### Security
+
+The API can be protected using an API Key.
+
+Example header:
+```
+X-API-KEY: your_api_key
+```
+Authentication is validated inside:
+
+security.py
