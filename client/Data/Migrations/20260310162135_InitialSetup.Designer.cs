@@ -9,11 +9,11 @@ using client.Data;
 
 #nullable disable
 
-namespace client.Migrations
+namespace client.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260310161543_AddInspectionImage")]
-    partial class AddInspectionImage
+    [Migration("20260310162135_InitialSetup")]
+    partial class InitialSetup
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
