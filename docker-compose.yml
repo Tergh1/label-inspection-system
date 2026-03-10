@@ -19,6 +19,28 @@ services:
       retries: 5
       start_period: 10s
 
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: lis-client
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=label_inspection_identity_dev;Username=postgres;Password=${POSTGRES_PASSWORD:-CHANGE_ME}
+      InspectionMl__BaseUrl: ${INSPECTION_ML_BASE_URL:-http://host.docker.internal:8000}
+      InspectionMl__PublicAppBaseUrl: ${INSPECTION_PUBLIC_APP_BASE_URL:-http://localhost:7107}
+      InspectionMl__ApiKey: ${INSPECTION_ML_API_KEY:-replace-me}
+      InspectionMl__WebhookSecret: ${INSPECTION_WEBHOOK_SECRET:-replace-me}
+    ports:
+      - "7107:8080"
+    volumes:
+      - ./client/App_Data:/app/App_Data
+
   pgadmin:
     image: dpage/pgadmin4:9
     container_name: lis-pgadmin

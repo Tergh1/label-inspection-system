@@ -63,6 +63,41 @@ This project is a **web-based image inspection system** for manufacturing labels
 
 ---
 
+## Docker Compose Services
+
+The repository `docker-compose.yml` can now run:
+
+- `postgres` for application data
+- `client` for the Blazor web app
+- `pgadmin` as an optional DB admin tool
+
+Start the database plus client:
+
+```bash
+POSTGRES_PASSWORD=your-password docker compose up --build client postgres
+```
+
+The client is published at:
+
+- `http://localhost:7107`
+
+Important runtime overrides for the container:
+
+- `ConnectionStrings__DefaultConnection` points to the `postgres` service inside Docker
+- `InspectionMl__BaseUrl` defaults to `http://host.docker.internal:8000` so the containerized client can call an ML service still running on the host
+- `InspectionMl__PublicAppBaseUrl` defaults to `http://localhost:7107` so callbacks and uploaded file URLs resolve back to the published client port
+
+If the ML service is later moved into Compose, set:
+
+```bash
+INSPECTION_ML_BASE_URL=http://ml-service:8000
+INSPECTION_PUBLIC_APP_BASE_URL=http://client:8080
+```
+
+The client stores uploaded files in `client/App_Data`, mounted into the container for persistence.
+
+---
+
 ## Workflow
 
 1. User inputs **image URL** in Blazor UI.  
