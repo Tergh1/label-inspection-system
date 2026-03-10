@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "image_inspection_service"
+version = "0.1.0"
+description = "AI service for product label inspection"
+authors = ["Dinka Ivanova"]
+
+packages = [{ include = "image_inspection_service" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110"
+uvicorn = "^0.29"
+torch = "^2.2"
+torchvision = "^0.17"
+pillow = "^10.2"
+numpy = "^1.26"
+requests = "^2.31"
+python-multipart = "^0.0.9"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+start = "uvicorn ml_service.main:app --reload"
