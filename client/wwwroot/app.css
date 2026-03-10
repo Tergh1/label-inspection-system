@@ -128,11 +128,15 @@ h1:focus {
 }
 
 .inspection-table-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
     border: 1px solid #e5e5e5;
     border-radius: 1rem;
     background: #fff;
     box-shadow: 0 18px 40px rgba(42, 30, 18, 0.06);
     padding: 1rem;
+    max-width: 100%;
 }
 
 .inspection-table-toolbar,
@@ -167,16 +171,62 @@ h1:focus {
 
 .inspection-table {
     margin-bottom: 0;
+    width: 100%;
+    table-layout: fixed;
+    font-size: 0.8rem;
 }
 
 .inspection-table th {
-    white-space: nowrap;
+    white-space: normal;
+}
+
+.inspection-table th,
+.inspection-table td {
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+}
+
+.inspection-table th:nth-child(1),
+.inspection-table td:nth-child(1) {
+    width: 6.5rem;
+}
+
+.inspection-table th:nth-child(4),
+.inspection-table td:nth-child(4),
+.inspection-table th:nth-child(5),
+.inspection-table td:nth-child(5) {
+    width: 8rem;
+}
+
+.inspection-table th:nth-child(6),
+.inspection-table td:nth-child(6) {
+    width: 6rem;
+}
+
+.inspection-table th:nth-child(7),
+.inspection-table td:nth-child(7) {
+    width: 10rem;
+}
+
+.inspection-table th:nth-child(8),
+.inspection-table td:nth-child(8) {
+    width: 12rem;
+}
+
+.inspection-table th:nth-child(9),
+.inspection-table td:nth-child(9) {
+    width: 5.5rem;
+}
+
+.table-responsive {
+    overflow: visible;
+    min-width: 0;
 }
 
 .inspection-thumbnail {
     display: block;
-    width: 96px;
-    height: 72px;
+    width: 80px;
+    height: 60px;
     object-fit: cover;
     border-radius: 0.75rem;
     background: #f5f5f5;
@@ -184,7 +234,7 @@ h1:focus {
 }
 
 .inspection-file-cell {
-    min-width: 220px;
+    min-width: 0;
 }
 
 .inspection-description {
@@ -192,8 +242,71 @@ h1:focus {
     max-width: 32ch;
 }
 
-.inspection-table td:last-child {
-    min-width: 220px;
+.inspection-row-actions {
+    position: relative;
+    display: inline-flex;
+    justify-content: flex-end;
+}
+
+.inspection-row-menu-button {
+    min-width: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.inspection-row-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 30;
+    min-width: 12rem;
+    padding: 0.35rem 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 18px 40px rgba(42, 30, 18, 0.12);
+}
+
+.inspection-row-menu .dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.85rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+}
+
+.inspection-row-menu .dropdown-item:hover,
+.inspection-row-menu .dropdown-item:focus {
+    background: #f6f6f6;
+}
+
+.inspection-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(24, 24, 27, 0.45);
+}
+
+.inspection-modal-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+}
+
+.inspection-modal-card {
+    width: min(100%, 28rem);
+    padding: 1.25rem;
+    border: 1px solid #e5e5e5;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 24px 60px rgba(42, 30, 18, 0.18);
+}
+
+.inspection-table td:nth-last-child(2) {
     color: #b42318;
 }
 
@@ -204,6 +317,7 @@ h1:focus {
 
     .inspection-table-panel {
         padding: 0.75rem;
+        min-height: 0;
     }
 
     .inspection-page-list {

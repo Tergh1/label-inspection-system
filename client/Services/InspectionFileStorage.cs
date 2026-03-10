@@ -33,6 +33,15 @@ public sealed class InspectionFileStorage(IOptions<InspectionStorageOptions> opt
 
     public string GetAbsolutePath(string relativePath) => Path.Combine(GetUploadRoot(), relativePath.Replace('/', Path.DirectorySeparatorChar));
 
+    public void Delete(string relativePath)
+    {
+        var absolutePath = GetAbsolutePath(relativePath);
+        if (File.Exists(absolutePath))
+        {
+            File.Delete(absolutePath);
+        }
+    }
+
     private void ValidateFile(string originalFileName, string contentType, long fileSizeBytes)
     {
         if (fileSizeBytes <= 0)

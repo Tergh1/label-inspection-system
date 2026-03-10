@@ -1,4 +1,5 @@
 @page "/images"
+@rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using client.Data
@@ -39,6 +40,11 @@ else if (images.Count == 0)
 }
 else
 {
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@statusMessage</div>
+    }
+
     <div class="inspection-table-panel">
         <div class="inspection-table-toolbar">
             <div class="text-muted small">
@@ -68,6 +74,7 @@ else
                         <th scope="col">Similarity</th>
                         <th scope="col">Tolerance</th>
                         <th scope="col">Failure</th>
+                        <th scope="col" class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -97,6 +104,50 @@ else
                                 @image.TolerancePercent.ToString("0.##")% (Min similarity @image.MinimumSimilarityPercent.ToString("0.##")%)
                             </td>
                             <td>@(string.IsNullOrWhiteSpace(image.FailureReason) ? "-" : image.FailureReason)</td>
+                            <td class="text-end">
+                                <div class="inspection-row-actions">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary inspection-row-menu-button"
+                                            aria-label="Open actions"
+                                            aria-expanded="@(openMenuImageId == image.Id)"
+                                            @onclick="() => ToggleMenu(image.Id)">
+                                        ...
+                                    </button>
+
+                                    @if (openMenuImageId == image.Id)
+                                    {
+                                        <div class="inspection-row-menu" role="menu">
+                                            <button type="button"
+                                                    class="dropdown-item text-danger"
+                                                    role="menuitem"
+                                                    @onclick="() => PromptDelete(image)">
+                                                Delete
+                                            </button>
+
+                                            @if (CanInspectAgain(image))
+                                            {
+                                                <button type="button"
+                                                        class="dropdown-item"
+                                                        role="menuitem"
+                                                        disabled="@isBusy"
+                                                        @onclick="() => InspectAgainAsync(image)">
+                                                    Inspect again
+                                                </button>
+                                            }
+
+                                            @if (CanShowDefects(image))
+                                            {
+                                                <button type="button"
+                                                        class="dropdown-item"
+                                                        role="menuitem"
+                                                        @onclick="ShowDefects">
+                                                    Show defects
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -126,11 +177,33 @@ else
     </div>
 }
 
+@if (imagePendingDelete is not null)
+{
+    <div class="inspection-modal-backdrop"></div>
+    <div class="inspection-modal-shell" role="dialog" aria-modal="true" aria-labelledby="delete-image-title">
+        <div class="inspection-modal-card">
+            <h2 id="delete-image-title" class="h5 mb-2">Delete image</h2>
+            <p class="text-muted mb-3">Delete <strong>@imagePendingDelete.OriginalFileName</strong>? This action cannot be undone.</p>
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@isBusy">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isBusy">
+                    @(isBusy ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private readonly List<InspectionImage> images = [];
     private static readonly int[] PageSizeOptions = [5, 10, 25, 50];
     private bool isLoading = true;
+    private bool isBusy;
+    private bool isError;
     private string? loadError;
+    private string? statusMessage;
+    private Guid? openMenuImageId;
+    private InspectionImage? imagePendingDelete;
     private int pageSize = 10;
     private int currentPage = 1;
 
@@ -147,13 +220,7 @@ else
     {
         try
         {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var user = await UserManager.GetUserAsync(authState.User)
-                ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
-
-            images.Clear();
-            images.AddRange(await WorkflowService.GetUserImagesAsync(user.Id, CancellationToken.None));
-            currentPage = 1;
+            await LoadImagesAsync();
         }
         catch (Exception ex)
         {
@@ -163,6 +230,18 @@ else
         {
             isLoading = false;
         }
+    }
+
+    private async Task LoadImagesAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User)
+            ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+
+        images.Clear();
+        images.AddRange(await WorkflowService.GetUserImagesAsync(user.Id, CancellationToken.None));
+        currentPage = Math.Min(currentPage, TotalPages);
+        currentPage = Math.Max(currentPage, 1);
     }
 
     private static string GetOutcomeBadgeClass(OutcomeStatus status) => status switch
@@ -178,6 +257,106 @@ else
         return similarityPercent.HasValue
             ? $"{similarityPercent.Value:0.##}%"
             : "N/A";
+    }
+
+    private void ToggleMenu(Guid imageId)
+    {
+        openMenuImageId = openMenuImageId == imageId ? null : imageId;
+    }
+
+    private static bool CanInspectAgain(InspectionImage image) => image.ProcessingStatus == ProcessingStatus.Failed;
+
+    private static bool CanShowDefects(InspectionImage image) => image.OutcomeStatus is OutcomeStatus.ValidWithDefects or OutcomeStatus.Invalid;
+
+    private void PromptDelete(InspectionImage image)
+    {
+        openMenuImageId = null;
+        imagePendingDelete = image;
+    }
+
+    private void CancelDelete()
+    {
+        imagePendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (imagePendingDelete is null)
+        {
+            return;
+        }
+
+        isBusy = true;
+        statusMessage = null;
+
+        try
+        {
+            var user = await GetCurrentUserAsync();
+            await WorkflowService.DeleteAsync(user.Id, imagePendingDelete.Id, CancellationToken.None);
+
+            images.RemoveAll(x => x.Id == imagePendingDelete.Id);
+            currentPage = Math.Min(currentPage, TotalPages);
+            imagePendingDelete = null;
+            isError = false;
+            statusMessage = "Image deleted.";
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task InspectAgainAsync(InspectionImage image)
+    {
+        isBusy = true;
+        statusMessage = null;
+        openMenuImageId = null;
+
+        try
+        {
+            var user = await GetCurrentUserAsync();
+            var updatedImage = await WorkflowService.RedispatchFailedAsync(user.Id, image.Id, CancellationToken.None);
+            ReplaceImage(updatedImage);
+            isError = updatedImage.ProcessingStatus == ProcessingStatus.Failed;
+            statusMessage = updatedImage.ProcessingStatus == ProcessingStatus.Failed
+                ? $"ML dispatch failed: {updatedImage.FailureReason}"
+                : "Image queued for inspection again.";
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ShowDefects()
+    {
+        openMenuImageId = null;
+    }
+
+    private void ReplaceImage(InspectionImage updatedImage)
+    {
+        var index = images.FindIndex(x => x.Id == updatedImage.Id);
+        if (index >= 0)
+        {
+            images[index] = updatedImage;
+        }
+    }
+
+    private async Task<ApplicationUser> GetCurrentUserAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return await UserManager.GetUserAsync(authState.User)
+            ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
     }
 
     private void HandlePageSizeChanged(ChangeEventArgs args)
