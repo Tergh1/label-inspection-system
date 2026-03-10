@@ -2,12 +2,16 @@
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.JSInterop
+@using System.Globalization
+@using System.Text.Json
 @using client.Data
 @using client.Data.Entities
 @using client.Services
 @attribute [Authorize]
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
 @inject UserManager<ApplicationUser> UserManager
 @inject InspectionWorkflowService WorkflowService
 @inject InspectionUrlBuilder UrlBuilder
@@ -140,7 +144,7 @@ else
                                                 <button type="button"
                                                         class="dropdown-item"
                                                         role="menuitem"
-                                                        @onclick="ShowDefects">
+                                                        @onclick="() => ShowDefects(image)">
                                                     Show defects
                                                 </button>
                                             }
@@ -177,6 +181,54 @@ else
     </div>
 }
 
+@if (imageShowingDefects is not null)
+{
+    <div class="inspection-modal-backdrop" @onclick="CloseDefectsModal"></div>
+    <div class="inspection-modal-shell inspection-modal-shell-wide" role="dialog" aria-modal="true" aria-labelledby="defect-viewer-title">
+        <div class="inspection-modal-card inspection-modal-card-wide">
+            <div class="inspection-defect-modal-header">
+                <div>
+                    <h2 id="defect-viewer-title" class="h5 mb-1">@imageShowingDefects.OriginalFileName</h2>
+                    <p class="text-muted mb-0">
+                        @defects.Count defect@(defects.Count == 1 ? string.Empty : "s")
+                    </p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary" @onclick="CloseDefectsModal">Close</button>
+            </div>
+
+            <div class="inspection-defect-modal-body">
+                <div class="inspection-defect-viewer">
+                    <img @ref="defectImageElement"
+                         src="@UrlBuilder.BuildImageUrl(imageShowingDefects)"
+                         alt="@imageShowingDefects.OriginalFileName"
+                         class="inspection-defect-image" />
+
+                    @if (defectImageDimensions is not null)
+                    {
+                        <svg class="inspection-defect-overlay"
+                             viewBox="@GetOverlayViewBox()"
+                             preserveAspectRatio="xMidYMid meet"
+                             aria-hidden="true">
+                            @foreach (var defect in defects)
+                            {
+                                <rect x="@FormatCoordinate(defect.X)"
+                                      y="@FormatCoordinate(defect.Y)"
+                                      width="@FormatCoordinate(defect.Width)"
+                                      height="@FormatCoordinate(defect.Height)" />
+                            }
+                        </svg>
+                    }
+                </div>
+
+                @if (defects.Count == 0)
+                {
+                    <p class="inspection-defect-empty text-muted mb-0">No defect coordinates available for this result.</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @if (imagePendingDelete is not null)
 {
     <div class="inspection-modal-backdrop"></div>
@@ -203,9 +255,15 @@ else
     private string? loadError;
     private string? statusMessage;
     private Guid? openMenuImageId;
+    private ElementReference defectImageElement;
+    private DotNetObjectReference<Images>? defectModalDotNetReference;
+    private InspectionImage? imageShowingDefects;
     private InspectionImage? imagePendingDelete;
+    private ImageDimensions? defectImageDimensions;
+    private List<DefectBox> defects = [];
     private int pageSize = 10;
     private int currentPage = 1;
+    private bool defectModalNeedsImageDimensions;
 
     private IEnumerable<InspectionImage> PagedImages => images
         .Skip((currentPage - 1) * pageSize)
@@ -271,6 +329,7 @@ else
     private void PromptDelete(InspectionImage image)
     {
         openMenuImageId = null;
+        CloseDefectsModal();
         imagePendingDelete = image;
     }
 
@@ -338,9 +397,58 @@ else
         }
     }
 
-    private void ShowDefects()
+    private void ShowDefects(InspectionImage image)
     {
         openMenuImageId = null;
+        imagePendingDelete = null;
+        imageShowingDefects = image;
+        defects = ParseDefects(image.DefectsJson);
+        defectImageDimensions = null;
+        defectModalNeedsImageDimensions = true;
+    }
+
+    private void CloseDefectsModal()
+    {
+        imageShowingDefects = null;
+        defectImageDimensions = null;
+        defectModalNeedsImageDimensions = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            defectModalDotNetReference = DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("inspectionDefectViewer.registerEscapeHandler", defectModalDotNetReference);
+        }
+
+        if (imageShowingDefects is not null && defectModalNeedsImageDimensions)
+        {
+            defectImageDimensions = await JSRuntime.InvokeAsync<ImageDimensions?>(
+                "inspectionDefectViewer.getImageDimensions",
+                defectImageElement);
+
+            defectModalNeedsImageDimensions = false;
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public Task HandleDefectModalEscape()
+    {
+        if (imageShowingDefects is not null)
+        {
+            CloseDefectsModal();
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        defectModalDotNetReference?.Dispose();
+        await JSRuntime.InvokeVoidAsync("inspectionDefectViewer.unregisterEscapeHandler");
     }
 
     private void ReplaceImage(InspectionImage updatedImage)
@@ -413,5 +521,88 @@ else
         }
 
         return $"{kilobytes / 1024d:F1} MB";
+    }
+
+    private static List<DefectBox> ParseDefects(string? defectsJson)
+    {
+        if (string.IsNullOrWhiteSpace(defectsJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(defectsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var parsedDefects = new List<DefectBox>();
+
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                if (!TryReadDecimal(element, "x", out var x)
+                    || !TryReadDecimal(element, "y", out var y)
+                    || !TryReadDecimal(element, "width", out var width)
+                    || !TryReadDecimal(element, "height", out var height))
+                {
+                    continue;
+                }
+
+                if (width <= 0 || height <= 0)
+                {
+                    continue;
+                }
+
+                parsedDefects.Add(new DefectBox(x, y, width, height));
+            }
+
+            return parsedDefects;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static bool TryReadDecimal(JsonElement element, string propertyName, out decimal value)
+    {
+        value = default;
+
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.Number => property.TryGetDecimal(out value),
+            JsonValueKind.String => decimal.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value),
+            _ => false
+        };
+    }
+
+    private string GetOverlayViewBox()
+    {
+        if (defectImageDimensions is null)
+        {
+            return "0 0 1 1";
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"0 0 {defectImageDimensions.Width} {defectImageDimensions.Height}");
+    }
+
+    private static string FormatCoordinate(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private sealed record DefectBox(decimal X, decimal Y, decimal Width, decimal Height);
+
+    private sealed class ImageDimensions
+    {
+        public int Width { get; set; }
+
+        public int Height { get; set; }
     }
 }

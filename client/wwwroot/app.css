@@ -306,6 +306,75 @@ h1:focus {
     box-shadow: 0 24px 60px rgba(42, 30, 18, 0.18);
 }
 
+.inspection-modal-shell-wide {
+    align-items: center;
+}
+
+.inspection-modal-card-wide {
+    width: min(100%, 72rem);
+    max-height: min(92vh, 64rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+}
+
+.inspection-defect-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.inspection-defect-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+}
+
+.inspection-defect-viewer {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: 1;
+    min-height: 18rem;
+    max-height: calc(92vh - 10rem);
+    overflow: auto;
+    border-radius: 0.85rem;
+    background:
+        linear-gradient(135deg, rgba(199, 213, 224, 0.16), rgba(255, 255, 255, 0)),
+        repeating-conic-gradient(from 45deg, #f4f4f5 0% 25%, #ececee 0% 50%) 50% / 20px 20px;
+}
+
+.inspection-defect-image {
+    display: block;
+    max-width: 100%;
+    max-height: calc(92vh - 10rem);
+    width: auto;
+    height: auto;
+}
+
+.inspection-defect-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.inspection-defect-overlay rect {
+    fill: rgba(217, 45, 32, 0.14);
+    stroke: #d92d20;
+    stroke-width: 4;
+    vector-effect: non-scaling-stroke;
+}
+
+.inspection-defect-empty {
+    font-size: 0.95rem;
+}
+
 .inspection-table td:nth-last-child(2) {
     color: #b42318;
 }
@@ -323,5 +392,24 @@ h1:focus {
     .inspection-page-list {
         width: 100%;
         flex-wrap: wrap;
+    }
+
+    .inspection-modal-card-wide {
+        max-height: 94vh;
+        padding: 1rem;
+    }
+
+    .inspection-defect-modal-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .inspection-defect-viewer {
+        min-height: 14rem;
+        max-height: calc(94vh - 12rem);
+    }
+
+    .inspection-defect-image {
+        max-height: calc(94vh - 12rem);
     }
 }
