@@ -1,8 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from ml_service.schemas.dto import InspectRequest
-from ml_service.services.inference_service import process_request
-from ml_service.security import verify_api_key
+from image_inspection_service.schemas.dto import InspectRequest
+from image_inspection_service.services.inference_service import process_request
+from image_inspection_service.security import verify_api_key
 
 router = APIRouter()
 

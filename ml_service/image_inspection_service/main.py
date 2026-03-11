@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from ml_service.api.routes import router
-from ml_service.core.startup import load_resources
+from image_inspection_service.api.routes import router
+from image_inspection_service.core.startup import load_resources
 
 app = FastAPI(
     title="ML Image Inspection Service",

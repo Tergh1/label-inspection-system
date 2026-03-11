@@ -49,9 +49,6 @@ Thumbs.db
 
 # Miscellaneous
 .vscode/settings.json
-tmp/gherkin_lint.log
-tmp/console.log
-downloads/*
 poetry.lock
 
 

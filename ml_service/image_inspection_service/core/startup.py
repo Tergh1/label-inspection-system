@@ -1,8 +1,8 @@
 from PIL import Image
 
-from ml_service.ml.model_loader import load_model
-from ml_service.ml.feature_extractor import extract_features
-from ml_service.config import TEMPLATE_IMAGE_PATH
+from image_inspection_service.ml.model_loader import load_model
+from image_inspection_service.ml.feature_extractor import extract_features
+from image_inspection_service.config import TEMPLATE_IMAGE_PATH
 
 
 model = None

@@ -69,7 +69,7 @@ image_inspection_service
 │ └── dto.py
 │
 ├── models
-│ └── template.jpg
+│ └── template.png
 │
 ├── pyproject.toml
 └── README.md
@@ -201,7 +201,7 @@ The template image represents the correct product label.
 
 It is stored locally:
 
-models/template.jpg
+models/template.png
 
 During service startup:
 
