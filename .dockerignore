@@ -1,0 +1,6 @@
+.git
+.gitignore
+**/bin
+**/obj
+**/.DS_Store
+**/App_Data

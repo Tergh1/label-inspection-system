@@ -41,6 +41,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddSingleton<InspectionUpdateNotifier>();
 builder.Services.AddScoped<InspectionWorkflowService>();
 builder.Services.AddScoped<InspectionFileStorage>();
 builder.Services.AddScoped<InspectionUrlBuilder>();
@@ -51,6 +52,12 @@ builder.Services.AddHttpClient<MlInspectionClient>((serviceProvider, client) =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    dbContext.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

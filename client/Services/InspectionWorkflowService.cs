@@ -64,6 +64,13 @@ public sealed class InspectionWorkflowService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<InspectionImage?> GetUserImageAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
+    {
+        return await dbContext.InspectionImages
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.OwnerUserId == ownerUserId && x.Id == imageId, cancellationToken);
+    }
+
     public async Task DeleteAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
     {
         var inspectionImage = await dbContext.InspectionImages
