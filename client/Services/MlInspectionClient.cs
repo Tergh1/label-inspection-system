@@ -8,12 +8,12 @@ public sealed class MlInspectionClient(HttpClient httpClient, IOptions<Inspectio
     public async Task DispatchAsync(Guid imageId, string imageUrl, string callbackUrl, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, options.Value.InspectPath);
-        using var content = new MultipartFormDataContent
+        using var content = JsonContent.Create(new
         {
-            { new StringContent(imageUrl), "image_url" },
-            { new StringContent(callbackUrl), "callback_url" },
-            { new StringContent(imageId.ToString()), "image_id" }
-        };
+            image_url = imageUrl,
+            callback_url = callbackUrl,
+            image_id = imageId
+        });
 
         request.Content = content;
 
