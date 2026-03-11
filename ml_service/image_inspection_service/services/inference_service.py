@@ -7,7 +7,7 @@ from image_inspection_service.ml.feature_extractor import extract_features
 from image_inspection_service.ml.similarity import cosine_similarity
 from image_inspection_service.ml.defect_detection import detect_defects
 
-from image_inspection_service.core.startup import model, template_features
+from image_inspection_service.core import startup
 from image_inspection_service.config import TEMPLATE_IMAGE_PATH
 
 
@@ -18,9 +18,9 @@ def process_request(request):
 
     image = download_image(request.image_url)
 
-    features = extract_features(model, image)
+    features = extract_features(startup.model, image)
 
-    similarity = cosine_similarity(template_features, features)
+    similarity = cosine_similarity(startup.template_features, features)
 
     defects = detect_defects(template_image, image)
 
