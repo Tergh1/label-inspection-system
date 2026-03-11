@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-CHANGE_ME}"
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: label_inspection_identity_dev
     ports:
       - "5432:5432"
@@ -31,11 +31,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=label_inspection_identity_dev;Username=postgres;Password=${POSTGRES_PASSWORD:-CHANGE_ME}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=label_inspection_identity_dev;Username=postgres;Password=postgres
       InspectionMl__BaseUrl: ${INSPECTION_ML_BASE_URL:-http://host.docker.internal:8000}
       InspectionMl__PublicAppBaseUrl: ${INSPECTION_PUBLIC_APP_BASE_URL:-http://localhost:7107}
-      InspectionMl__ApiKey: ${INSPECTION_ML_API_KEY:-replace-me}
-      InspectionMl__WebhookSecret: ${INSPECTION_WEBHOOK_SECRET:-replace-me}
+      InspectionMl__ApiKey: ${INSPECTION_ML_API_KEY:-61564072594301516938052184223075}
+      InspectionMl__WebhookSecret: ${INSPECTION_WEBHOOK_SECRET:-61564072594301516938052184223075}
     ports:
       - "7107:8080"
     volumes:
@@ -49,7 +49,7 @@ services:
       - tools
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_DEFAULT_PASSWORD:-CHANGE_ME}"
+      PGADMIN_DEFAULT_PASSWORD: postgres
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
     ports:
       - "5050:80"

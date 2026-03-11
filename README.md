@@ -76,6 +76,9 @@ Start the database plus client:
 ```bash
 POSTGRES_PASSWORD=your-password docker compose up --build client postgres
 ```
+```shell
+$env:POSTGRES_PASSWORD="your-password"; docker compose up --build client postgres
+```
 
 The client is published at:
 
