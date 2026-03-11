@@ -7,7 +7,7 @@ API_KEY = os.getenv("ML_SERVICE_API_KEY")
 
 TEMPLATE_IMAGE_PATH = os.getenv(
     "TEMPLATE_IMAGE_PATH",
-    "models/template.jpg"
+    "models/template.png"
 )
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

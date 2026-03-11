@@ -11,9 +11,7 @@ dist/
 *.class
 *.py[cod]
 *.jar
-
-# Package files
-poetry.lock
+__init__.py
 
 # Log files
 *.log
