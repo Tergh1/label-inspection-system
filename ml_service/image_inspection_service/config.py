@@ -11,3 +11,5 @@ TEMPLATE_IMAGE_PATH = os.getenv(
 )
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+CLIENT_X_WEBHOOK_SECRET = os.getenv("CLIENT_X_WEBHOOK_SECRET")

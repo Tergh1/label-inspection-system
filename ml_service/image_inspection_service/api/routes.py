@@ -17,6 +17,6 @@ async def inspect_async(
     background_tasks.add_task(process_request, request)
 
     return {
-        "status": "processing_started",
+        "status": "processing",
         "image_id": request.image_id
     }

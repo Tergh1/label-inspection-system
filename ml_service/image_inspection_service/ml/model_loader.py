@@ -4,7 +4,7 @@ import torchvision.models as models
 
 def load_model():
 
-    model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 
     model = torch.nn.Sequential(*list(model.children())[:-1])
 
