@@ -5,12 +5,13 @@ namespace client.Services;
 
 public sealed class MlInspectionClient(HttpClient httpClient, IOptions<InspectionMlOptions> options)
 {
-    public async Task DispatchAsync(Guid imageId, string imageUrl, string callbackUrl, CancellationToken cancellationToken)
+    public async Task DispatchAsync(Guid imageId, string imageUrl, string templateUrl, string callbackUrl, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, options.Value.InspectPath);
         using var content = JsonContent.Create(new
         {
             image_url = imageUrl,
+            template_url = templateUrl,
             callback_url = callbackUrl,
             image_id = imageId
         });

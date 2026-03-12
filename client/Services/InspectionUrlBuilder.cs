@@ -13,6 +13,13 @@ public sealed class InspectionUrlBuilder(IOptions<InspectionMlOptions> mlOptions
         return $"{baseUri}{pathPrefix}/{image.PublicAccessToken}";
     }
 
+    public string BuildTemplateUrl(InspectionTemplate template)
+    {
+        var baseUri = TrimTrailingSlash(mlOptions.Value.PublicAppBaseUrl);
+        var pathPrefix = NormalizePath(storageOptions.Value.TemplatePublicFilePathPrefix);
+        return $"{baseUri}{pathPrefix}/{template.PublicAccessToken}";
+    }
+
     public string BuildWebhookUrl()
     {
         var baseUri = TrimTrailingSlash(mlOptions.Value.PublicAppBaseUrl);

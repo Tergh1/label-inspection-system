@@ -17,7 +17,6 @@ public sealed class InspectionImageConfiguration : IEntityTypeConfiguration<Insp
         builder.Property(x => x.StoredRelativePath).IsRequired();
         builder.Property(x => x.PublicAccessToken).IsRequired();
         builder.Property(x => x.OwnerUserId).IsRequired();
-
         builder.Property(x => x.TolerancePercent).HasPrecision(5, 2);
         builder.Property(x => x.MinimumSimilarityPercent).HasPrecision(5, 2);
         builder.Property(x => x.SimilarityPercent).HasPrecision(5, 2);
@@ -33,6 +32,7 @@ public sealed class InspectionImageConfiguration : IEntityTypeConfiguration<Insp
             .HasMaxLength(32);
 
         builder.HasIndex(x => x.OwnerUserId);
+        builder.HasIndex(x => x.TemplateId);
         builder.HasIndex(x => x.CreatedAtUtc);
         builder.HasIndex(x => x.ProcessingStatus);
         builder.HasIndex(x => x.PublicAccessToken).IsUnique();
@@ -41,5 +41,10 @@ public sealed class InspectionImageConfiguration : IEntityTypeConfiguration<Insp
             .WithMany()
             .HasForeignKey(x => x.OwnerUserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Template)
+            .WithMany()
+            .HasForeignKey(x => x.TemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -191,30 +191,33 @@ h1:focus {
     width: 6.5rem;
 }
 
+.inspection-table th:nth-child(3),
+.inspection-table td:nth-child(3) {
+    width: 8rem;
+}
+
 .inspection-table th:nth-child(4),
-.inspection-table td:nth-child(4),
+.inspection-table td:nth-child(4) {
+    width: 8rem;
+}
+
 .inspection-table th:nth-child(5),
 .inspection-table td:nth-child(5) {
-    width: 8rem;
+    width: 6rem;
 }
 
 .inspection-table th:nth-child(6),
 .inspection-table td:nth-child(6) {
-    width: 6rem;
+    width: 10rem;
 }
 
 .inspection-table th:nth-child(7),
 .inspection-table td:nth-child(7) {
-    width: 10rem;
+    width: 12rem;
 }
 
 .inspection-table th:nth-child(8),
 .inspection-table td:nth-child(8) {
-    width: 12rem;
-}
-
-.inspection-table th:nth-child(9),
-.inspection-table td:nth-child(9) {
     width: 5.5rem;
 }
 
@@ -240,6 +243,47 @@ h1:focus {
 .inspection-description {
     margin-top: 0.35rem;
     max-width: 32ch;
+}
+
+.inspection-description-wide {
+    max-width: none;
+}
+
+.inspection-template-card {
+    height: 100%;
+}
+
+.min-w-0 {
+    min-width: 0;
+}
+
+.inspection-template-table th:nth-child(1),
+.inspection-template-table td:nth-child(1) {
+    width: 6.5rem;
+}
+
+.inspection-template-table th:nth-child(2),
+.inspection-template-table td:nth-child(2) {
+    width: 12rem;
+}
+
+.inspection-template-table th:nth-child(3),
+.inspection-template-table td:nth-child(3) {
+    width: 18rem;
+}
+
+.inspection-template-table th:nth-child(4),
+.inspection-template-table td:nth-child(4),
+.inspection-template-table th:nth-child(5),
+.inspection-template-table td:nth-child(5),
+.inspection-template-table th:nth-child(6),
+.inspection-template-table td:nth-child(6) {
+    width: 8rem;
+}
+
+.inspection-template-table th:nth-child(7),
+.inspection-template-table td:nth-child(7) {
+    width: 5.5rem;
 }
 
 .inspection-row-actions {
