@@ -12,6 +12,7 @@
     <div class="hero-actions">
         <AuthorizeView>
             <Authorized>
+                <a href="/templates/upload" class="btn btn-outline-secondary btn-lg">Upload template</a>
                 <a href="/images/upload" class="btn btn-primary btn-lg">Upload image</a>
                 <a href="/images" class="btn btn-outline-secondary btn-lg">View my uploads</a>
             </Authorized>
@@ -25,15 +26,15 @@
 
 <div class="home-grid">
     <section class="info-card">
-        <h2>Upload contract</h2>
-        <p>Each submission includes an image file, tolerance percent, and optional description. The app stores the file locally and exposes a public image URL for the ML service.</p>
+        <h2>Template-first flow</h2>
+        <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an inspection image.</p>
     </section>
     <section class="info-card">
         <h2>Async processing</h2>
-        <p>The ML service receives <code>image_url</code>, <code>callback_url</code>, and <code>image_id</code>, then posts similarity and defect results back through a shared-secret webhook.</p>
+        <p>The ML service receives <code>image_url</code>, <code>template_url</code>, <code>callback_url</code>, and <code>image_id</code>, then posts similarity and defect results back through a shared-secret webhook.</p>
     </section>
     <section class="info-card">
         <h2>Outcome rule</h2>
-        <p>Tolerance is interpreted as allowed deviation from perfect similarity. A tolerance of 20 means the image is accepted at 80% similarity or higher.</p>
+        <p>Template tolerance seeds the image form, but users can override it. A tolerance of 20 means the image is accepted at 80% similarity or higher.</p>
     </section>
 </div>

@@ -12,6 +12,7 @@ public static class InspectionFileEndpoints
     {
         var storageOptions = endpoints.ServiceProvider.GetRequiredService<IOptions<InspectionStorageOptions>>().Value;
         var publicFileRoute = $"{NormalizePath(storageOptions.PublicFilePathPrefix)}/{{token}}";
+        var templateFileRoute = $"{NormalizePath(storageOptions.TemplatePublicFilePathPrefix)}/{{token}}";
 
         endpoints.MapGet(publicFileRoute, async (
             string token,
@@ -35,6 +36,30 @@ public static class InspectionFileEndpoints
             }
 
             return Results.File(filePath, inspectionImage.ContentType, enableRangeProcessing: false);
+        });
+
+        endpoints.MapGet(templateFileRoute, async (
+            string token,
+            ApplicationDbContext dbContext,
+            InspectionFileStorage fileStorage,
+            CancellationToken cancellationToken) =>
+        {
+            var inspectionTemplate = await dbContext.InspectionTemplates
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.PublicAccessToken == token, cancellationToken);
+
+            if (inspectionTemplate is null)
+            {
+                return Results.NotFound();
+            }
+
+            var filePath = fileStorage.GetAbsolutePath(inspectionTemplate.StoredRelativePath);
+            if (!File.Exists(filePath))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.File(filePath, inspectionTemplate.ContentType, enableRangeProcessing: false);
         });
 
         return endpoints;

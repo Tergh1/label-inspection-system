@@ -43,6 +43,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddSingleton<InspectionUpdateNotifier>();
 builder.Services.AddScoped<InspectionWorkflowService>();
+builder.Services.AddScoped<InspectionTemplateWorkflowService>();
 builder.Services.AddScoped<InspectionFileStorage>();
 builder.Services.AddScoped<InspectionUrlBuilder>();
 builder.Services.AddHttpClient<MlInspectionClient>((serviceProvider, client) =>

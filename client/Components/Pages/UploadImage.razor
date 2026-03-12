@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Options
 @using client.Data
+@using client.Data.Entities
 @using client.Options
 @using client.Services
 @attribute [Authorize]
@@ -12,12 +13,13 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject InspectionWorkflowService WorkflowService
+@inject InspectionTemplateWorkflowService TemplateWorkflowService
 @inject IOptions<InspectionStorageOptions> StorageOptions
 
 <PageTitle>Upload Image</PageTitle>
 
 <h1>Upload inspection image</h1>
-<p class="text-muted">Submit an image, tolerance percent, and optional description. The ML service will download the public image URL and update the result asynchronously.</p>
+<p class="text-muted">Select a template, upload an image, and optionally override the template tolerance before dispatching the inspection request.</p>
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
 {
@@ -30,6 +32,14 @@
     <DataAnnotationsValidator />
     <ValidationSummary />
 
+    @if (templates.Count == 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            You need at least one template before uploading an image.
+            <a href="/templates/upload" class="alert-link">Upload a template</a>.
+        </div>
+    }
+
     <div class="mb-3">
         <label class="form-label" for="inspection-file">Image file</label>
         <InputFile id="inspection-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" />
@@ -37,6 +47,30 @@
         {
             <div class="form-text">
                 Selected: @selectedFile.Name (@FormatBytes(selectedFile.Size))
+            </div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="template">Template</label>
+        <InputSelect id="template"
+                     @bind-Value="model.TemplateId"
+                     @bind-Value:after="HandleTemplateChanged"
+                     class="form-select">
+            <option value="">Select a template</option>
+            @foreach (var template in templates)
+            {
+                <option value="@template.Id">@template.FriendlyName</option>
+            }
+        </InputSelect>
+        @if (selectedTemplate is not null)
+        {
+            <div class="form-text">
+                Default tolerance: @selectedTemplate.TolerancePercent.ToString("0.##")%
+                @if (!string.IsNullOrWhiteSpace(selectedTemplate.Description))
+                {
+                    <span> • @selectedTemplate.Description</span>
+                }
             </div>
         }
     </div>
@@ -52,18 +86,37 @@
         <InputTextArea id="description" @bind-Value="model.Description" class="form-control" rows="4" />
     </div>
 
-    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+    <button type="submit" class="btn btn-primary" disabled="@(isSubmitting || templates.Count == 0)">
         @(isSubmitting ? "Uploading..." : "Upload image")
     </button>
     <a href="/images" class="btn btn-link">View uploaded images</a>
+    <a href="/templates" class="btn btn-link">View templates</a>
 </EditForm>
 
 @code {
     private readonly UploadImageModel model = new() { TolerancePercent = 20m };
+    private readonly List<InspectionTemplate> templates = [];
     private IBrowserFile? selectedFile;
+    private InspectionTemplate? selectedTemplate;
     private bool isSubmitting;
     private bool isError;
     private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User)
+            ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+
+        templates.AddRange(await TemplateWorkflowService.GetUserTemplatesAsync(user.Id, CancellationToken.None));
+
+        if (templates.Count > 0)
+        {
+            selectedTemplate = templates[0];
+            model.TemplateId = selectedTemplate.Id;
+            model.TolerancePercent = selectedTemplate.TolerancePercent;
+        }
+    }
 
     private void HandleFileSelected(InputFileChangeEventArgs args)
     {
@@ -80,6 +133,13 @@
             return;
         }
 
+        if (model.TemplateId is null)
+        {
+            isError = true;
+            statusMessage = "Please select a template.";
+            return;
+        }
+
         isSubmitting = true;
         statusMessage = null;
 
@@ -92,6 +152,7 @@
             await using var fileStream = selectedFile.OpenReadStream(StorageOptions.Value.MaxFileSizeBytes);
             var inspection = await WorkflowService.CreateAsync(
                 user.Id,
+                model.TemplateId.Value,
                 selectedFile.Name,
                 selectedFile.ContentType,
                 selectedFile.Size,
@@ -107,7 +168,7 @@
 
             selectedFile = null;
             model.Description = null;
-            model.TolerancePercent = 20m;
+            model.TolerancePercent = selectedTemplate?.TolerancePercent ?? 20m;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -119,6 +180,17 @@
         {
             isSubmitting = false;
         }
+    }
+
+    private Task HandleTemplateChanged()
+    {
+        selectedTemplate = templates.SingleOrDefault(x => x.Id == model.TemplateId);
+        if (selectedTemplate is not null)
+        {
+            model.TolerancePercent = selectedTemplate.TolerancePercent;
+        }
+
+        return Task.CompletedTask;
     }
 
     private static string FormatBytes(long bytes)
@@ -139,6 +211,9 @@
 
     private sealed class UploadImageModel
     {
+        [Required]
+        public Guid? TemplateId { get; set; }
+
         [Range(0, 100)]
         public decimal TolerancePercent { get; set; }
 

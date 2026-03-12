@@ -13,6 +13,7 @@ public sealed class InspectionWorkflowService(
 {
     public async Task<InspectionImage> CreateAsync(
         string ownerUserId,
+        Guid templateId,
         string originalFileName,
         string contentType,
         long fileSizeBytes,
@@ -26,12 +27,17 @@ public sealed class InspectionWorkflowService(
             throw new InvalidOperationException("Tolerance must be between 0 and 100.");
         }
 
+        var template = await dbContext.InspectionTemplates
+            .SingleOrDefaultAsync(x => x.Id == templateId && x.OwnerUserId == ownerUserId, cancellationToken)
+            ?? throw new InvalidOperationException("Template not found.");
+
         var now = DateTimeOffset.UtcNow;
         var storedFile = await fileStorage.SaveAsync(originalFileName, contentType, fileSizeBytes, fileStream, cancellationToken);
 
         var inspectionImage = new InspectionImage
         {
             Id = Guid.NewGuid(),
+            TemplateId = template.Id,
             OwnerUserId = ownerUserId,
             OriginalFileName = Path.GetFileName(originalFileName),
             ContentType = contentType,
@@ -50,6 +56,7 @@ public sealed class InspectionWorkflowService(
         dbContext.InspectionImages.Add(inspectionImage);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        inspectionImage.Template = template;
         await DispatchAsync(inspectionImage, cancellationToken);
 
         return inspectionImage;
@@ -59,6 +66,7 @@ public sealed class InspectionWorkflowService(
     {
         return await dbContext.InspectionImages
             .AsNoTracking()
+            .Include(x => x.Template)
             .Where(x => x.OwnerUserId == ownerUserId)
             .OrderByDescending(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
@@ -68,12 +76,14 @@ public sealed class InspectionWorkflowService(
     {
         return await dbContext.InspectionImages
             .AsNoTracking()
+            .Include(x => x.Template)
             .SingleOrDefaultAsync(x => x.OwnerUserId == ownerUserId && x.Id == imageId, cancellationToken);
     }
 
     public async Task DeleteAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
     {
         var inspectionImage = await dbContext.InspectionImages
+            .Include(x => x.Template)
             .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken)
             ?? throw new InvalidOperationException("Image not found.");
 
@@ -86,6 +96,7 @@ public sealed class InspectionWorkflowService(
     public async Task<InspectionImage> RedispatchFailedAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
     {
         var inspectionImage = await dbContext.InspectionImages
+            .Include(x => x.Template)
             .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken)
             ?? throw new InvalidOperationException("Image not found.");
 
@@ -110,9 +121,18 @@ public sealed class InspectionWorkflowService(
     {
         try
         {
+            var templateId = inspectionImage.TemplateId
+                ?? throw new InvalidOperationException("This inspection image does not have a template assigned.");
+
+            var template = inspectionImage.Template ?? await dbContext.InspectionTemplates
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == templateId, cancellationToken)
+                ?? throw new InvalidOperationException("Template not found.");
+
             await mlInspectionClient.DispatchAsync(
                 inspectionImage.Id,
                 urlBuilder.BuildImageUrl(inspectionImage),
+                urlBuilder.BuildTemplateUrl(template),
                 urlBuilder.BuildWebhookUrl(),
                 cancellationToken);
 

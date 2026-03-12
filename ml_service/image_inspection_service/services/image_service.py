@@ -5,7 +5,7 @@ from io import BytesIO
 
 def download_image(url: str):
 
-    response = requests.get(url)
+    response = requests.get(url, verify=False)
 
     response.raise_for_status()
 

@@ -8,14 +8,15 @@ The `client` project is the web application for the Label Inspection System. It 
 - ASP.NET Core Identity for authentication
 - Entity Framework Core with PostgreSQL
 - local file storage for uploaded inspection images
+- local file storage for uploaded inspection templates
 - asynchronous communication with the Python ML service
 - a webhook endpoint that receives ML inspection results
 
 At a high level, the client does five things:
 
 1. authenticates users
-2. accepts image uploads plus inspection metadata
-3. stores image files and inspection records
+2. accepts template uploads and image uploads plus inspection metadata
+3. stores template files, image files, and inspection records
 4. dispatches work to the ML service
 5. updates inspection records when the ML service calls back
 
@@ -52,12 +53,15 @@ The client project is responsible for:
 
 - user registration and login
 - storing application users in PostgreSQL
+- saving uploaded template files on disk
 - saving uploaded image files on disk
+- creating template records in PostgreSQL
 - creating inspection records in PostgreSQL
-- exposing public URLs for stored images so the ML service can fetch them
+- exposing public URLs for stored images and templates so the ML service can fetch them
 - dispatching inspection jobs to the ML service
 - receiving webhook updates from the ML service
 - calculating the final acceptance state from similarity and defect data
+- presenting uploaded templates to the signed-in user
 - presenting uploaded inspection history to the signed-in user
 
 The client project does not:
@@ -74,7 +78,7 @@ Those responsibilities belong to the Python ML service under `ml_service`.
 
 ### Main components
 
-- `Blazor UI`: authenticated pages for upload and review
+- `Blazor UI`: authenticated pages for template management, upload, and review
 - `Application services`: orchestration for file storage, URL generation, and ML dispatch
 - `PostgreSQL`: stores users and inspection metadata
 - `Local file storage`: stores uploaded files under `App_Data/...`
@@ -82,18 +86,22 @@ Those responsibilities belong to the Python ML service under `ml_service`.
 
 ### Request/processing lifecycle
 
-1. A signed-in user uploads an image in `/images/upload`.
-2. The client validates file type, size, and tolerance.
-3. The file is stored on disk under the configured upload root.
-4. A database record is created in `InspectionImages`.
-5. The client builds:
+1. A signed-in user uploads a template in `/templates/upload`.
+2. The client validates file type, size, friendly name, and default tolerance.
+3. The template file is stored on disk and a row is created in `InspectionTemplates`.
+4. Later, the user uploads an image in `/images/upload`.
+5. The image upload requires a template selection from the current user's uploaded templates.
+6. The selected template auto-populates the image tolerance, but the user can override it before saving.
+7. The image file is stored on disk and a row is created in `InspectionImages` linked through `TemplateId`.
+8. The client builds:
    - a public image URL for the stored file
+   - a public template URL for the selected template
    - a webhook callback URL for ML results
-6. The client sends a multipart `POST` request to the ML service.
-7. The inspection record moves to `Queued` if dispatch succeeds, or `Failed` if dispatch fails.
-8. The ML service processes the image asynchronously.
-9. The ML service posts results to the client webhook.
-10. The client updates the inspection row with similarity, defects, status, and outcome.
+9. The client sends a JSON `POST` request to the ML service.
+10. The inspection record moves to `Queued` if dispatch succeeds, or `Failed` if dispatch fails.
+11. The ML service processes the image asynchronously against the selected template.
+12. The ML service posts results to the client webhook.
+13. The client updates the inspection row with similarity, defects, status, and outcome.
 
 ---
 
@@ -234,6 +242,20 @@ Example generated public URL:
 
 ```text
 https://localhost:7107/inspection-files/{publicAccessToken}
+```
+
+#### `TemplatePublicFilePathPrefix`
+
+Route prefix used to expose stored template files over HTTP.
+
+Current value:
+
+- `/inspection-template-files`
+
+Example generated public URL:
+
+```text
+https://localhost:7107/inspection-template-files/{publicAccessToken}
 ```
 
 #### `MaxFileSizeBytes`
@@ -439,7 +461,9 @@ Persistence layer.
 
 - `ApplicationDbContext.cs`: EF Core DbContext
 - `ApplicationUser.cs`: Identity user entity
+- `Entities/InspectionTemplate.cs`: uploaded template metadata
 - `Entities/InspectionImage.cs`: inspection aggregate record
+- `Configurations/InspectionTemplateConfiguration.cs`: EF mapping for templates
 - `Configurations/InspectionImageConfiguration.cs`: EF mapping
 - `Migrations/*`: database schema history
 
@@ -447,7 +471,7 @@ Persistence layer.
 
 Minimal API endpoints that are not Blazor pages.
 
-- `InspectionFileEndpoints.cs`: serves stored image files by tokenized URL
+- `InspectionFileEndpoints.cs`: serves stored image and template files by tokenized URL
 - `MlWebhookEndpoints.cs`: receives asynchronous ML result callbacks
 
 #### `Options/`
@@ -462,6 +486,7 @@ Strongly typed configuration classes.
 Application orchestration and infrastructure logic.
 
 - `InspectionWorkflowService.cs`: main inspection workflow
+- `InspectionTemplateWorkflowService.cs`: template create/list/delete workflow
 - `InspectionFileStorage.cs`: file validation and persistence
 - `InspectionUrlBuilder.cs`: public URL generation
 - `MlInspectionClient.cs`: outbound HTTP client to the ML service
@@ -480,6 +505,25 @@ Defined in [ApplicationUser.cs](/Users/delkov/Projects/label-inspection-system/c
 
 Currently this inherits directly from `IdentityUser` and adds no extra profile fields.
 
+### `InspectionTemplate`
+
+Defined in [InspectionTemplate.cs](/Users/delkov/Projects/label-inspection-system/client/Data/Entities/InspectionTemplate.cs).
+
+Fields:
+
+- `Id`: template identifier
+- `OwnerUserId`: owning authenticated user
+- `FriendlyName`: required user-visible name shown in dropdowns and listings
+- `OriginalFileName`: original uploaded file name
+- `ContentType`: MIME type
+- `FileSizeBytes`: stored file size
+- `StoredRelativePath`: relative path on disk below upload root
+- `PublicAccessToken`: token used to expose the file without revealing the physical path
+- `Description`: optional template description
+- `TolerancePercent`: default tolerance copied into the image upload form
+- `CreatedAtUtc`: creation timestamp
+- `UpdatedAtUtc`: last update timestamp
+
 ### `InspectionImage`
 
 Defined in [InspectionImage.cs](/Users/delkov/Projects/label-inspection-system/client/Data/Entities/InspectionImage.cs).
@@ -487,6 +531,7 @@ Defined in [InspectionImage.cs](/Users/delkov/Projects/label-inspection-system/c
 Fields:
 
 - `Id`: inspection identifier, also used as ML `image_id`
+- `TemplateId`: optional foreign key to the selected template; nullable to support legacy rows created before template management existed
 - `OwnerUserId`: owning authenticated user
 - `OriginalFileName`: original uploaded file name
 - `ContentType`: MIME type
@@ -494,7 +539,7 @@ Fields:
 - `StoredRelativePath`: relative path on disk below upload root
 - `PublicAccessToken`: token used to expose the file without revealing the physical path
 - `Description`: optional user-entered description
-- `TolerancePercent`: user-entered tolerance
+- `TolerancePercent`: saved image tolerance, initially seeded from the selected template but still editable per image
 - `MinimumSimilarityPercent`: computed as `100 - tolerance`
 - `ProcessingStatus`: workflow state
 - `OutcomeStatus`: business result state
@@ -533,12 +578,14 @@ Configured in [InspectionImageConfiguration.cs](/Users/delkov/Projects/label-ins
 
 Important mapping rules:
 
+- table name: `InspectionTemplates`
 - table name: `InspectionImages`
 - `DefectsJson` stored as `jsonb`
 - enum values persisted as strings
 - decimal precision for tolerance/similarity fields is `numeric(5,2)`
 - unique index on `PublicAccessToken`
 - indexes on `OwnerUserId`, `CreatedAtUtc`, and `ProcessingStatus`
+- `InspectionImage.TemplateId` references `InspectionTemplate.Id`
 
 ---
 
@@ -573,15 +620,16 @@ The database stores only the relative path and public access token, not the abso
 
 Files are served through a route, not directly via static-file directory browsing.
 
-Route pattern:
+Route patterns:
 
 ```text
 /inspection-files/{token}
+/inspection-template-files/{token}
 ```
 
 Lookup flow:
 
-1. resolve `InspectionImage` by `PublicAccessToken`
+1. resolve `InspectionImage` or `InspectionTemplate` by `PublicAccessToken`
 2. resolve stored file path
 3. return the file if it exists
 4. return `404` if the record or file does not exist
@@ -598,11 +646,12 @@ The client sends:
 
 - HTTP method: `POST`
 - URL: `{BaseUrl}{InspectPath}`
-- content type: `multipart/form-data`
+- content type: `application/json`
 
-Form fields:
+JSON fields:
 
 - `image_url`
+- `template_url`
 - `callback_url`
 - `image_id`
 
@@ -617,6 +666,7 @@ POST http://localhost:8000/inspect-async
 X-API-KEY: dev-ml-token
 
 image_url=https://localhost:7107/inspection-files/{token}
+template_url=https://localhost:7107/inspection-template-files/{token}
 callback_url=https://localhost:7107/api/ml/webhook
 image_id={guid}
 ```
@@ -694,6 +744,7 @@ The main orchestration logic is in [InspectionWorkflowService.cs](/Users/delkov/
 Responsibilities:
 
 - validates tolerance range `0..100`
+- validates that the selected template belongs to the current user
 - stores uploaded file
 - creates `InspectionImage`
 - computes `MinimumSimilarityPercent = 100 - TolerancePercent`
@@ -757,15 +808,38 @@ Authorization:
 Inputs:
 
 - image file
+- template selection
 - tolerance percent
 - optional description
 
 Behavior:
 
+- requires at least one uploaded template before an image can be submitted
+- populates the template dropdown from the current user's templates
+- copies the selected template tolerance into the image form
 - opens the browser file stream with the configured max size
 - resolves the current authenticated user
 - calls `InspectionWorkflowService.CreateAsync(...)`
 - displays success or failure messages in the page
+
+### Templates pages
+
+Defined in:
+
+- [UploadTemplate.razor](/Users/delkov/Projects/label-inspection-system/client/Components/Pages/UploadTemplate.razor)
+- [Templates.razor](/Users/delkov/Projects/label-inspection-system/client/Components/Pages/Templates.razor)
+
+Routes:
+
+- `/templates/upload`
+- `/templates`
+
+Features:
+
+- upload a template image with friendly name, tolerance, and optional description
+- paginated list of the current user's uploaded templates
+- delete action with confirmation prompt
+- deletion blocked when a template is already referenced by one or more inspection images
 
 ### Images page
 
@@ -823,6 +897,8 @@ Examples:
 - `/`
 - `/images`
 - `/images/upload`
+- `/templates`
+- `/templates/upload`
 - `/Account/Login`
 - `/Account/Register`
 
@@ -840,6 +916,16 @@ Current effective route:
 
 ```text
 /inspection-files/{token}
+```
+
+### Public template file endpoint
+
+Also defined in [InspectionFileEndpoints.cs](/Users/delkov/Projects/label-inspection-system/client/Endpoints/InspectionFileEndpoints.cs).
+
+Current effective route:
+
+```text
+/inspection-template-files/{token}
 ```
 
 ### ML webhook endpoint
@@ -867,6 +953,7 @@ The initial EF Core migration is present under [Data/Migrations](/Users/delkov/P
 The schema includes:
 
 - ASP.NET Identity tables
+- `InspectionTemplates`
 - `InspectionImages`
 
 The `InspectionImages` table stores both workflow state and business result data, which keeps the current implementation simple but means the row acts as both:

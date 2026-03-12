@@ -73,7 +73,6 @@ else
                     <tr>
                         <th scope="col">Preview</th>
                         <th scope="col">Image</th>
-                        <th scope="col">Uploaded</th>
                         <th scope="col">Processing</th>
                         <th scope="col">Outcome</th>
                         <th scope="col">Similarity</th>
@@ -92,6 +91,8 @@ else
                             <td>
                                 <div class="inspection-file-cell">
                                     <div class="fw-semibold">@image.OriginalFileName</div>
+                                    <div class="text-muted small">Template: @(image.Template?.FriendlyName ?? "-")</div>
+                                    <div class="text-muted small">Uploaded: @image.CreatedAtUtc.LocalDateTime.ToString("g")</div>
                                     <div class="text-muted small">@FormatBytes(image.FileSizeBytes)</div>
                                     @if (!string.IsNullOrWhiteSpace(image.Description))
                                     {
@@ -99,7 +100,6 @@ else
                                     }
                                 </div>
                             </td>
-                            <td>@image.CreatedAtUtc.LocalDateTime.ToString("g")</td>
                             <td>@image.ProcessingStatus</td>
                             <td>
                                 <span class="badge rounded-pill inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>

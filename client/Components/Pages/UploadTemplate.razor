@@ -1,0 +1,156 @@
+@page "/templates/upload"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using client.Data
+@using client.Options
+@using client.Services
+@attribute [Authorize]
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject InspectionTemplateWorkflowService TemplateWorkflowService
+@inject IOptions<InspectionStorageOptions> StorageOptions
+
+<PageTitle>Upload Template</PageTitle>
+
+<h1>Upload template</h1>
+<p class="text-muted">Upload a reference label template with a friendly name, default tolerance, and optional description.</p>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">
+        @statusMessage
+    </div>
+}
+
+<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" FormName="upload-template" class="inspection-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label" for="template-file">Template file</label>
+        <InputFile id="template-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" />
+        @if (selectedFile is not null)
+        {
+            <div class="form-text">
+                Selected: @selectedFile.Name (@FormatBytes(selectedFile.Size))
+            </div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="friendly-name">Friendly name</label>
+        <InputText id="friendly-name" @bind-Value="model.FriendlyName" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="template-tolerance">Similarity tolerance</label>
+        <InputNumber id="template-tolerance" @bind-Value="model.TolerancePercent" class="form-control" />
+        <div class="form-text">This value will prefill the tolerance when a user selects the template during image upload.</div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="template-description">Description</label>
+        <InputTextArea id="template-description" @bind-Value="model.Description" class="form-control" rows="4" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+        @(isSubmitting ? "Uploading..." : "Upload template")
+    </button>
+    <a href="/templates" class="btn btn-link">View templates</a>
+</EditForm>
+
+@code {
+    private readonly UploadTemplateModel model = new() { TolerancePercent = 20m };
+    private IBrowserFile? selectedFile;
+    private bool isSubmitting;
+    private bool isError;
+    private string? statusMessage;
+
+    private void HandleFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.FileCount > 0 ? args.File : null;
+        statusMessage = null;
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (selectedFile is null)
+        {
+            isError = true;
+            statusMessage = "Please select a template file.";
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User)
+                ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+
+            await using var fileStream = selectedFile.OpenReadStream(StorageOptions.Value.MaxFileSizeBytes);
+            await TemplateWorkflowService.CreateAsync(
+                user.Id,
+                model.FriendlyName,
+                selectedFile.Name,
+                selectedFile.ContentType,
+                selectedFile.Size,
+                fileStream,
+                model.TolerancePercent,
+                model.Description,
+                CancellationToken.None);
+
+            isError = false;
+            statusMessage = "Template uploaded.";
+            selectedFile = null;
+            model.FriendlyName = string.Empty;
+            model.Description = null;
+            model.TolerancePercent = 20m;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        var kilobytes = bytes / 1024d;
+        if (kilobytes < 1024)
+        {
+            return $"{kilobytes:F1} KB";
+        }
+
+        return $"{kilobytes / 1024d:F1} MB";
+    }
+
+    private sealed class UploadTemplateModel
+    {
+        [Required]
+        [StringLength(200)]
+        public string FriendlyName { get; set; } = string.Empty;
+
+        [Range(0, 100)]
+        public decimal TolerancePercent { get; set; }
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+    }
+}

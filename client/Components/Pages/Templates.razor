@@ -1,0 +1,325 @@
+@page "/templates"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using client.Data
+@using client.Data.Entities
+@using client.Services
+@attribute [Authorize]
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject InspectionTemplateWorkflowService TemplateWorkflowService
+@inject InspectionUrlBuilder UrlBuilder
+
+<PageTitle>Templates</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="mb-1">Templates</h1>
+        <p class="text-muted mb-0">Only your uploaded templates are listed here.</p>
+    </div>
+    <a href="/templates/upload" class="btn btn-primary">Upload template</a>
+</div>
+
+@if (isLoading)
+{
+    <p>Loading templates...</p>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <div class="alert alert-danger" role="alert">@loadError</div>
+}
+else if (templates.Count == 0)
+{
+    <div class="empty-state">
+        <h2>No templates yet</h2>
+        <p>Upload a reference template before sending images for analysis.</p>
+        <a href="/templates/upload" class="btn btn-primary">Upload template</a>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@statusMessage</div>
+    }
+
+    <div class="inspection-table-panel">
+        <div class="inspection-table-toolbar">
+            <div class="text-muted small">
+                Showing @StartItemIndex-@EndItemIndex of @templates.Count templates
+            </div>
+
+            <div class="inspection-page-size">
+                <label class="form-label mb-0" for="template-page-size">Rows per page</label>
+                <select id="template-page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged">
+                    @foreach (var size in PageSizeOptions)
+                    {
+                        <option value="@size">@size</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle inspection-table inspection-template-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Preview</th>
+                        <th scope="col">Template</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Tolerance</th>
+                        <th scope="col">Uploaded</th>
+                        <th scope="col">Size</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var template in PagedTemplates)
+                    {
+                        <tr>
+                            <td>
+                                <img src="@UrlBuilder.BuildTemplateUrl(template)" alt="@template.FriendlyName" class="inspection-thumbnail" />
+                            </td>
+                            <td>
+                                <div class="inspection-file-cell">
+                                    <div class="fw-semibold">@template.FriendlyName</div>
+                                    <div class="text-muted small">@template.OriginalFileName</div>
+                                </div>
+                            </td>
+                            <td>@(string.IsNullOrWhiteSpace(template.Description) ? "-" : template.Description)</td>
+                            <td>@template.TolerancePercent.ToString("0.##")%</td>
+                            <td>@template.CreatedAtUtc.LocalDateTime.ToString("g")</td>
+                            <td>@FormatBytes(template.FileSizeBytes)</td>
+                            <td class="text-end">
+                                <div class="inspection-row-actions">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary inspection-row-menu-button"
+                                            aria-label="Open actions"
+                                            aria-expanded="@(openMenuTemplateId == template.Id)"
+                                            @onclick="() => ToggleMenu(template.Id)">
+                                        ...
+                                    </button>
+
+                                    @if (openMenuTemplateId == template.Id)
+                                    {
+                                        <div class="inspection-row-menu" role="menu">
+                                            <button type="button"
+                                                    class="dropdown-item text-danger"
+                                                    role="menuitem"
+                                                    @onclick="() => PromptDelete(template)">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="inspection-pagination">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                Previous
+            </button>
+
+            <div class="inspection-page-list" role="navigation" aria-label="Template pages">
+                @foreach (var pageNumber in PageNumbers)
+                {
+                    <button type="button"
+                            class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="() => GoToPage(pageNumber)">
+                        @pageNumber
+                    </button>
+                }
+            </div>
+
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+                Next
+            </button>
+        </div>
+    </div>
+}
+
+@if (templatePendingDelete is not null)
+{
+    <div class="inspection-modal-backdrop"></div>
+    <div class="inspection-modal-shell" role="dialog" aria-modal="true" aria-labelledby="delete-template-title">
+        <div class="inspection-modal-card">
+            <h2 id="delete-template-title" class="h5 mb-2">Delete template</h2>
+            <p class="text-muted mb-3">Delete <strong>@templatePendingDelete.FriendlyName</strong>? This action cannot be undone.</p>
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@isBusy">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isBusy">
+                    @(isBusy ? "Deleting..." : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly List<InspectionTemplate> templates = [];
+    private static readonly int[] PageSizeOptions = [5, 10, 25, 50];
+    private bool isLoading = true;
+    private bool isBusy;
+    private bool isError;
+    private string? loadError;
+    private string? statusMessage;
+    private Guid? openMenuTemplateId;
+    private InspectionTemplate? templatePendingDelete;
+    private int pageSize = 12;
+    private int currentPage = 1;
+    private string? currentUserId;
+
+    private IEnumerable<InspectionTemplate> PagedTemplates => templates
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(templates.Count / (double)pageSize));
+    private int StartItemIndex => templates.Count == 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+    private int EndItemIndex => Math.Min(currentPage * pageSize, templates.Count);
+    private IEnumerable<int> PageNumbers => Enumerable.Range(1, TotalPages);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = await ResolveCurrentUserAsync();
+            currentUserId = user.Id;
+            await LoadTemplatesAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadTemplatesAsync()
+    {
+        templates.Clear();
+        templates.AddRange(await TemplateWorkflowService.GetUserTemplatesAsync(GetCurrentUserId(), CancellationToken.None));
+        currentPage = Math.Clamp(currentPage, 1, TotalPages);
+    }
+
+    private void ToggleMenu(Guid templateId)
+    {
+        openMenuTemplateId = openMenuTemplateId == templateId ? null : templateId;
+    }
+
+    private void PromptDelete(InspectionTemplate template)
+    {
+        openMenuTemplateId = null;
+        templatePendingDelete = template;
+    }
+
+    private void CancelDelete()
+    {
+        templatePendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (templatePendingDelete is null)
+        {
+            return;
+        }
+
+        isBusy = true;
+        statusMessage = null;
+
+        try
+        {
+            await TemplateWorkflowService.DeleteAsync(GetCurrentUserId(), templatePendingDelete.Id, CancellationToken.None);
+            templates.RemoveAll(x => x.Id == templatePendingDelete.Id);
+            currentPage = Math.Clamp(currentPage, 1, TotalPages);
+            templatePendingDelete = null;
+            isError = false;
+            statusMessage = "Template deleted.";
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private async Task<ApplicationUser> ResolveCurrentUserAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return await UserManager.GetUserAsync(authState.User)
+            ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+    }
+
+    private string GetCurrentUserId()
+    {
+        return currentUserId ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+    }
+
+    private void HandlePageSizeChanged(ChangeEventArgs args)
+    {
+        if (args.Value is null || !int.TryParse(args.Value.ToString(), out var selectedPageSize))
+        {
+            return;
+        }
+
+        if (!PageSizeOptions.Contains(selectedPageSize))
+        {
+            return;
+        }
+
+        pageSize = selectedPageSize;
+        currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < TotalPages)
+        {
+            currentPage++;
+        }
+    }
+
+    private void GoToPage(int pageNumber)
+    {
+        if (pageNumber >= 1 && pageNumber <= TotalPages)
+        {
+            currentPage = pageNumber;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        var kilobytes = bytes / 1024d;
+        if (kilobytes < 1024)
+        {
+            return $"{kilobytes:F1} KB";
+        }
+
+        return $"{kilobytes / 1024d:F1} MB";
+    }
+}
