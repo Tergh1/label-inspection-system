@@ -26,4 +26,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-start = "uvicorn main:app --reload --app-dir image_inspection_service"
+start = "image_inspection_service.start:main"
