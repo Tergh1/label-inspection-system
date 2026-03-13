@@ -4,6 +4,7 @@ from typing import List
 
 class InspectRequest(BaseModel):
     image_url: str
+    template_url: str
     callback_url: str
     image_id: str
 

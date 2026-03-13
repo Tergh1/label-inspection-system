@@ -54,3 +54,7 @@ poetry.lock
 .vscode/
 .github/
 
+# app data
+App_Data/
+*.sln
+

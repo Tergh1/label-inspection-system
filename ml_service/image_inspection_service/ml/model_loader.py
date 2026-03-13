@@ -6,7 +6,7 @@ def load_model():
 
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 
-    model = torch.nn.Sequential(*list(model.children())[:-1])
+    model.fc = torch.nn.Identity()
 
     model.eval()
 
