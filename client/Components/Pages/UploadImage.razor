@@ -1,5 +1,6 @@
 @page "/images/upload"
 @rendermode InteractiveServer
+@using System.Globalization
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -19,7 +20,7 @@
 <PageTitle>Upload Image</PageTitle>
 
 <h1>Upload inspection image</h1>
-<p class="text-muted">Select a template, upload an image, and optionally override the template tolerance before dispatching the inspection request.</p>
+<p class="text-muted">Select one template, add one or more images, and set tolerance and optional description for each image before dispatching them one by one.</p>
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
 {
@@ -41,12 +42,80 @@
     }
 
     <div class="mb-3">
-        <label class="form-label" for="inspection-file">Image file</label>
-        <InputFile id="inspection-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" />
-        @if (selectedFile is not null)
+        <label class="form-label" for="inspection-file">Image files</label>
+        <InputFile id="inspection-file"
+                   OnChange="HandleFileSelected"
+                   accept="@AcceptedFileTypes"
+                   multiple
+                   class="form-control" />
+        <div class="form-text">You can add more files in multiple selections. The selected template applies to every image.</div>
+
+        @if (uploadItems.Count > 0)
         {
-            <div class="form-text">
-                Selected: @selectedFile.Name (@FormatBytes(selectedFile.Size))
+            <div class="mt-3 table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">File</th>
+                            <th scope="col">Tolerance %</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var draft in uploadItems)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@draft.File.Name</div>
+                                    <div class="text-muted small">@FormatBytes(draft.File.Size)</div>
+                                </td>
+                                <td style="min-width: 12rem;">
+                                    <input type="number"
+                                           class="form-control"
+                                           min="0"
+                                           max="100"
+                                           step="0.01"
+                                           value="@draft.ToleranceInput"
+                                           disabled="@isSubmitting"
+                                           @oninput="args => HandleToleranceInput(draft, args.Value?.ToString())" />
+                                    @if (draft.IsToleranceInherited)
+                                    {
+                                        <div class="form-text">Using template default.</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(draft.ValidationMessage))
+                                    {
+                                        <div class="text-danger small">@draft.ValidationMessage</div>
+                                    }
+                                </td>
+                                <td style="min-width: 18rem;">
+                                    <InputTextArea @bind-Value="draft.Description"
+                                                   class="form-control"
+                                                   rows="2"
+                                                   disabled="@isSubmitting" />
+                                </td>
+                                <td style="min-width: 16rem;">
+                                    <span class="badge rounded-pill @GetDraftBadgeClass(draft.State)">@GetDraftStateLabel(draft.State)</span>
+                                    @if (!string.IsNullOrWhiteSpace(draft.ResultMessage))
+                                    {
+                                        <div class="small mt-1 @(draft.State == UploadDraftState.Failed ? "text-danger" : "text-muted")">
+                                            @draft.ResultMessage
+                                        </div>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button type="button"
+                                            class="btn btn-outline-danger btn-sm"
+                                            disabled="@isSubmitting"
+                                            @onclick="() => RemoveDraft(draft.Id)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         }
     </div>
@@ -75,32 +144,22 @@
         }
     </div>
 
-    <div class="mb-3">
-        <label class="form-label" for="tolerance">Tolerance percent</label>
-        <InputNumber id="tolerance" @bind-Value="model.TolerancePercent" class="form-control" />
-        <div class="form-text">Example: 20 means the final result is accepted from 80% to 100% similarity.</div>
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label" for="description">Description</label>
-        <InputTextArea id="description" @bind-Value="model.Description" class="form-control" rows="4" />
-    </div>
-
     <button type="submit" class="btn btn-primary" disabled="@(isSubmitting || templates.Count == 0)">
-        @(isSubmitting ? "Uploading..." : "Upload image")
+        @(isSubmitting ? "Uploading images..." : "Upload images")
     </button>
     <a href="/images" class="btn btn-link">View uploaded images</a>
     <a href="/templates" class="btn btn-link">View templates</a>
 </EditForm>
 
 @code {
-    private readonly UploadImageModel model = new() { TolerancePercent = 20m };
+    private readonly UploadImageModel model = new();
     private readonly List<InspectionTemplate> templates = [];
-    private IBrowserFile? selectedFile;
+    private readonly List<UploadImageDraft> uploadItems = [];
     private InspectionTemplate? selectedTemplate;
     private bool isSubmitting;
     private bool isError;
     private string? statusMessage;
+    private string AcceptedFileTypes => string.Join(",", StorageOptions.Value.AllowedExtensions);
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,22 +173,32 @@
         {
             selectedTemplate = templates[0];
             model.TemplateId = selectedTemplate.Id;
-            model.TolerancePercent = selectedTemplate.TolerancePercent;
         }
     }
 
     private void HandleFileSelected(InputFileChangeEventArgs args)
     {
-        selectedFile = args.FileCount > 0 ? args.File : null;
+        foreach (var file in args.GetMultipleFiles(int.MaxValue))
+        {
+            uploadItems.Add(new UploadImageDraft
+            {
+                File = file,
+                Description = null,
+                ToleranceInput = FormatTolerance(selectedTemplate?.TolerancePercent ?? 20m),
+                IsToleranceInherited = true
+            });
+        }
+
         statusMessage = null;
+        isError = false;
     }
 
     private async Task HandleSubmitAsync()
     {
-        if (selectedFile is null)
+        if (uploadItems.Count == 0)
         {
             isError = true;
-            statusMessage = "Please select an image file.";
+            statusMessage = "Please select at least one image file.";
             return;
         }
 
@@ -142,6 +211,7 @@
 
         isSubmitting = true;
         statusMessage = null;
+        ResetDraftMessages();
 
         try
         {
@@ -149,27 +219,77 @@
             var user = await UserManager.GetUserAsync(authState.User)
                 ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
 
-            await using var fileStream = selectedFile.OpenReadStream(StorageOptions.Value.MaxFileSizeBytes);
-            var inspection = await WorkflowService.CreateAsync(
-                user.Id,
-                model.TemplateId.Value,
-                selectedFile.Name,
-                selectedFile.ContentType,
-                selectedFile.Size,
-                fileStream,
-                model.TolerancePercent,
-                model.Description,
-                CancellationToken.None);
+            var processedDraftIds = new HashSet<Guid>();
+            var queuedCount = 0;
+            var dispatchFailedCount = 0;
+            var uploadFailedCount = 0;
+            var draftsToProcess = uploadItems.ToList();
 
-            isError = false;
-            statusMessage = inspection.ProcessingStatus == client.Data.Entities.ProcessingStatus.Failed
-                ? $"Image stored, but ML dispatch failed: {inspection.FailureReason}"
-                : "Image uploaded and queued for ML processing.";
+            for (var index = 0; index < draftsToProcess.Count; index++)
+            {
+                var draft = draftsToProcess[index];
+                draft.ValidationMessage = null;
+                draft.ResultMessage = $"Processing {index + 1} of {draftsToProcess.Count}...";
+                draft.State = UploadDraftState.Uploading;
+                StateHasChanged();
 
-            selectedFile = null;
-            model.Description = null;
-            model.TolerancePercent = selectedTemplate?.TolerancePercent ?? 20m;
-            StateHasChanged();
+                if (!TryValidateDraft(draft, out var tolerancePercent, out var validationMessage))
+                {
+                    draft.ValidationMessage = validationMessage;
+                    draft.ResultMessage = validationMessage;
+                    draft.State = UploadDraftState.Failed;
+                    uploadFailedCount++;
+                    continue;
+                }
+
+                try
+                {
+                    await using var fileStream = draft.File.OpenReadStream(StorageOptions.Value.MaxFileSizeBytes);
+                    var inspection = await WorkflowService.CreateAsync(
+                        user.Id,
+                        model.TemplateId.Value,
+                        draft.File.Name,
+                        draft.File.ContentType,
+                        draft.File.Size,
+                        fileStream,
+                        tolerancePercent,
+                        draft.Description,
+                        CancellationToken.None);
+
+                    processedDraftIds.Add(draft.Id);
+
+                    if (inspection.ProcessingStatus == client.Data.Entities.ProcessingStatus.Failed)
+                    {
+                        dispatchFailedCount++;
+                        draft.State = UploadDraftState.Failed;
+                        draft.ResultMessage = $"Inspection was created, but ML dispatch failed: {inspection.FailureReason}. Retry it from My Uploads.";
+                    }
+                    else
+                    {
+                        queuedCount++;
+                        draft.State = UploadDraftState.Succeeded;
+                        draft.ResultMessage = "Uploaded and queued for ML processing.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    uploadFailedCount++;
+                    draft.State = UploadDraftState.Failed;
+                    draft.ResultMessage = ex.Message;
+                }
+                finally
+                {
+                    StateHasChanged();
+                }
+            }
+
+            if (processedDraftIds.Count > 0)
+            {
+                uploadItems.RemoveAll(x => processedDraftIds.Contains(x.Id));
+            }
+
+            isError = dispatchFailedCount > 0 || uploadFailedCount > 0;
+            statusMessage = BuildBatchStatusMessage(draftsToProcess.Count, queuedCount, dispatchFailedCount, uploadFailedCount);
         }
         catch (Exception ex)
         {
@@ -185,13 +305,153 @@
     private Task HandleTemplateChanged()
     {
         selectedTemplate = templates.SingleOrDefault(x => x.Id == model.TemplateId);
+
         if (selectedTemplate is not null)
         {
-            model.TolerancePercent = selectedTemplate.TolerancePercent;
+            foreach (var draft in uploadItems.Where(x => x.IsToleranceInherited))
+            {
+                draft.ToleranceInput = FormatTolerance(selectedTemplate.TolerancePercent);
+                draft.ValidationMessage = null;
+            }
         }
 
         return Task.CompletedTask;
     }
+
+    private void HandleToleranceInput(UploadImageDraft draft, string? value)
+    {
+        draft.ToleranceInput = value ?? string.Empty;
+        draft.IsToleranceInherited = false;
+        draft.ValidationMessage = null;
+
+        if (draft.State != UploadDraftState.Uploading)
+        {
+            draft.State = UploadDraftState.Ready;
+            draft.ResultMessage = null;
+        }
+    }
+
+    private void RemoveDraft(Guid draftId)
+    {
+        uploadItems.RemoveAll(x => x.Id == draftId);
+        statusMessage = null;
+        isError = false;
+    }
+
+    private void ResetDraftMessages()
+    {
+        foreach (var draft in uploadItems)
+        {
+            draft.ValidationMessage = null;
+            draft.ResultMessage = null;
+            draft.State = UploadDraftState.Ready;
+        }
+    }
+
+    private bool TryValidateDraft(UploadImageDraft draft, out decimal tolerancePercent, out string? validationMessage)
+    {
+        tolerancePercent = 0m;
+        validationMessage = null;
+
+        if (draft.File.Size <= 0)
+        {
+            validationMessage = "A non-empty image file is required.";
+            return false;
+        }
+
+        if (draft.File.Size > StorageOptions.Value.MaxFileSizeBytes)
+        {
+            validationMessage = $"File exceeds the maximum allowed size of {StorageOptions.Value.MaxFileSizeBytes} bytes.";
+            return false;
+        }
+
+        var extension = Path.GetExtension(draft.File.Name).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(extension) ||
+            !StorageOptions.Value.AllowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            validationMessage = "Unsupported file type.";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(draft.File.ContentType) &&
+            !draft.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            validationMessage = "Unsupported content type.";
+            return false;
+        }
+
+        if (!decimal.TryParse(draft.ToleranceInput, NumberStyles.Number, CultureInfo.InvariantCulture, out tolerancePercent) &&
+            !decimal.TryParse(draft.ToleranceInput, NumberStyles.Number, CultureInfo.CurrentCulture, out tolerancePercent))
+        {
+            validationMessage = "Tolerance must be a valid number.";
+            return false;
+        }
+
+        if (tolerancePercent < 0 || tolerancePercent > 100)
+        {
+            validationMessage = "Tolerance must be between 0 and 100.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string BuildBatchStatusMessage(int totalCount, int queuedCount, int dispatchFailedCount, int uploadFailedCount)
+    {
+        var segments = new List<string>();
+
+        if (queuedCount > 0)
+        {
+            segments.Add($"{queuedCount} queued");
+        }
+
+        if (dispatchFailedCount > 0)
+        {
+            segments.Add($"{dispatchFailedCount} created with ML dispatch failure");
+        }
+
+        if (uploadFailedCount > 0)
+        {
+            segments.Add($"{uploadFailedCount} not submitted");
+        }
+
+        if (segments.Count == 0)
+        {
+            segments.Add("no images processed");
+        }
+
+        var message = $"Processed {totalCount} image(s): {string.Join(", ", segments)}.";
+
+        if (dispatchFailedCount > 0)
+        {
+            message += " Retry dispatch failures from My Uploads.";
+        }
+
+        if (uploadFailedCount > 0)
+        {
+            message += " Submission failures remain in the list.";
+        }
+
+        return message;
+    }
+
+    private static string GetDraftStateLabel(UploadDraftState state) => state switch
+    {
+        UploadDraftState.Uploading => "Processing",
+        UploadDraftState.Succeeded => "Queued",
+        UploadDraftState.Failed => "Failed",
+        _ => "Ready"
+    };
+
+    private static string GetDraftBadgeClass(UploadDraftState state) => state switch
+    {
+        UploadDraftState.Uploading => "text-bg-primary",
+        UploadDraftState.Succeeded => "text-bg-success",
+        UploadDraftState.Failed => "text-bg-danger",
+        _ => "text-bg-secondary"
+    };
+
+    private static string FormatTolerance(decimal value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
     private static string FormatBytes(long bytes)
     {
@@ -213,11 +473,31 @@
     {
         [Required]
         public Guid? TemplateId { get; set; }
+    }
 
-        [Range(0, 100)]
-        public decimal TolerancePercent { get; set; }
+    private sealed class UploadImageDraft
+    {
+        public Guid Id { get; } = Guid.NewGuid();
 
-        [StringLength(2000)]
+        public required IBrowserFile File { get; init; }
         public string? Description { get; set; }
+
+        public string ToleranceInput { get; set; } = string.Empty;
+
+        public bool IsToleranceInherited { get; set; }
+
+        public UploadDraftState State { get; set; } = UploadDraftState.Ready;
+
+        public string? ResultMessage { get; set; }
+
+        public string? ValidationMessage { get; set; }
+    }
+
+    private enum UploadDraftState
+    {
+        Ready,
+        Uploading,
+        Succeeded,
+        Failed
     }
 }
