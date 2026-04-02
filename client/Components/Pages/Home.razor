@@ -6,14 +6,14 @@
     <div>
         <p class="eyebrow">Automated quality control</p>
         <h1>Label inspection portal</h1>
-        <p class="lead">Upload manufacturing label images and review the claculated similarity to a template.</p>
+        <p class="lead">This project is a web-based image inspection system. Users upload images of the actual produced labels. The system automatically verifies it against a template using a pretrained ResNet18 model.</p>
     </div>
 
     <div class="hero-actions">
         <AuthorizeView>
             <Authorized>
                 <a href="/templates/upload" class="btn btn-outline-secondary btn-lg">Upload template</a>
-                <a href="/images/upload" class="btn btn-primary btn-lg">Inspect image</a>
+                <a href="/images/upload" class="btn btn-outline-secondary btn-lg">Inspect image</a>
                 <a href="/images" class="btn btn-outline-secondary btn-lg">View inspected images</a>
             </Authorized>
             <NotAuthorized>
@@ -27,14 +27,14 @@
 <div class="home-grid">
     <section class="info-card">
         <h2>Templates</h2>
-        <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an inspection image.</p>
+        <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an image for inspection.</p>
     </section>
     <section class="info-card">
         <h2>Processing</h2>
-        <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an inspection image.</p>
+        <p>Upload an image of the label to be inspected and it will be sent to ML service that will calculate a similarity percent having the template as a basis.</p>
     </section>
     <section class="info-card">
         <h2>Outcome rule</h2>
-         <p>Template tolerance seeds the image form, but users can override it while uploading new image of a label. The tolerance defines the deviation from the 100 % match that is acceptable and the product still can be marked as valid.</p>
+         <p>The tolerance defines the deviation from the 100 % match that is acceptable and the product still can be marked as valid. Template base tolerance seeds the image form, but users can override it while uploading new image of a label. </p>
     </section>
 </div>
