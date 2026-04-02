@@ -21,10 +21,10 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <h1 class="mb-1">Uploaded images</h1>
-        <p class="text-muted mb-0">Only your uploads are listed here.</p>
+        <h1 class="mb-1">Inspected images</h1>
+        <p class="text-muted mb-0">All inspected images listed from last to the first.</p>
     </div>
-    <a href="/images/upload" class="btn btn-primary">Upload new image</a>
+    <a href="/images/upload" class="btn btn-primary">Upload image</a>
 </div>
 
 @if (isLoading)
@@ -39,7 +39,7 @@ else if (images.Count == 0)
 {
     <div class="empty-state">
         <h2>No uploads yet</h2>
-        <p>Start by uploading an inspection image.</p>
+        <p>Start by uploading an image for inspection.</p>
         <a href="/images/upload" class="btn btn-primary">Upload image</a>
     </div>
 }

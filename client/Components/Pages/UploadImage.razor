@@ -18,7 +18,7 @@
 
 <PageTitle>Upload Image</PageTitle>
 
-<h1>Upload inspection image</h1>
+<h1>Upload image to be inspected</h1>
 <p class="text-muted">Select a template, upload an image, and optionally override the template tolerance before dispatching the inspection request.</p>
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
@@ -78,7 +78,7 @@
     <div class="mb-3">
         <label class="form-label" for="tolerance">Tolerance percent</label>
         <InputNumber id="tolerance" @bind-Value="model.TolerancePercent" class="form-control" />
-        <div class="form-text">Example: 20 means the final result is accepted from 80% to 100% similarity.</div>
+        <div class="form-text">Example: 2 means the final result is qualified as valid from 98% to 100% similarity.</div>
     </div>
 
     <div class="mb-3">
