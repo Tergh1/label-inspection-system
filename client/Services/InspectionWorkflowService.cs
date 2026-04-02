@@ -95,9 +95,7 @@ public sealed class InspectionWorkflowService(
 
     public async Task<InspectionImage> RedispatchFailedAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
     {
-        var inspectionImage = await dbContext.InspectionImages
-            .Include(x => x.Template)
-            .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken)
+        var inspectionImage = await LoadTrackedInspectionImageAsync(ownerUserId, imageId, cancellationToken)
             ?? throw new InvalidOperationException("Image not found.");
 
         if (inspectionImage.ProcessingStatus != ProcessingStatus.Failed)
@@ -115,6 +113,23 @@ public sealed class InspectionWorkflowService(
 
         await DispatchAsync(inspectionImage, cancellationToken);
         return inspectionImage;
+    }
+
+    private async Task<InspectionImage?> LoadTrackedInspectionImageAsync(string ownerUserId, Guid imageId, CancellationToken cancellationToken)
+    {
+        DetachTrackedInspectionImage(imageId);
+
+        return await dbContext.InspectionImages
+            .Include(x => x.Template)
+            .SingleOrDefaultAsync(x => x.Id == imageId && x.OwnerUserId == ownerUserId, cancellationToken);
+    }
+
+    private void DetachTrackedInspectionImage(Guid imageId)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries<InspectionImage>().Where(x => x.Entity.Id == imageId).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
     }
 
     private async Task DispatchAsync(InspectionImage inspectionImage, CancellationToken cancellationToken)

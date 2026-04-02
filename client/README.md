@@ -89,19 +89,19 @@ Those responsibilities belong to the Python ML service under `ml_service`.
 1. A signed-in user uploads a template in `/templates/upload`.
 2. The client validates file type, size, friendly name, and default tolerance.
 3. The template file is stored on disk and a row is created in `InspectionTemplates`.
-4. Later, the user uploads an image in `/images/upload`.
+4. Later, the user uploads one or more images in `/images/upload`.
 5. The image upload requires a template selection from the current user's uploaded templates.
-6. The selected template auto-populates the image tolerance, but the user can override it before saving.
-7. The image file is stored on disk and a row is created in `InspectionImages` linked through `TemplateId`.
-8. The client builds:
+6. The selected template is shared across the batch, and each image gets its own tolerance and optional description.
+7. Each image file is stored on disk and a row is created in `InspectionImages` linked through `TemplateId`.
+8. For each image, the client builds:
    - a public image URL for the stored file
    - a public template URL for the selected template
    - a webhook callback URL for ML results
-9. The client sends a JSON `POST` request to the ML service.
-10. The inspection record moves to `Queued` if dispatch succeeds, or `Failed` if dispatch fails.
-11. The ML service processes the image asynchronously against the selected template.
+9. The client sends a JSON `POST` request to the ML service for each image, one at a time.
+10. Each inspection record moves to `Queued` if dispatch succeeds, or `Failed` if dispatch fails.
+11. The ML service processes each image asynchronously against the selected template.
 12. The ML service posts results to the client webhook.
-13. The client updates the inspection row with similarity, defects, status, and outcome.
+13. The client updates each inspection row with similarity, defects, status, and outcome.
 
 ---
 
@@ -807,20 +807,22 @@ Authorization:
 
 Inputs:
 
-- image file
+- one or more image files
 - template selection
-- tolerance percent
-- optional description
+- per-image tolerance percent
+- per-image optional description
 
 Behavior:
 
-- requires at least one uploaded template before an image can be submitted
+- requires at least one uploaded template before images can be submitted
 - populates the template dropdown from the current user's templates
-- copies the selected template tolerance into the image form
-- opens the browser file stream with the configured max size
+- uses one shared template for the current batch
+- initializes each selected image from the template tolerance, while allowing per-image overrides
+- opens the browser file stream with the configured max size for each image
 - resolves the current authenticated user
-- calls `InspectionWorkflowService.CreateAsync(...)`
-- displays success or failure messages in the page
+- calls `InspectionWorkflowService.CreateAsync(...)` sequentially for each image
+- continues processing the rest of the batch when one image fails
+- displays batch summary plus per-image status messages in the page
 
 ### Templates pages
 
