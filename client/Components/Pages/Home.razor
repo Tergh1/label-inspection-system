@@ -6,15 +6,15 @@
     <div>
         <p class="eyebrow">Automated quality control</p>
         <h1>Label inspection portal</h1>
-        <p class="lead">Upload manufacturing label images, send them to the ML service asynchronously, and review similarity and defect outcomes in one place.</p>
+        <p class="lead">Upload manufacturing label images and review the claculated similarity to a template.</p>
     </div>
 
     <div class="hero-actions">
         <AuthorizeView>
             <Authorized>
                 <a href="/templates/upload" class="btn btn-outline-secondary btn-lg">Upload template</a>
-                <a href="/images/upload" class="btn btn-primary btn-lg">Upload image</a>
-                <a href="/images" class="btn btn-outline-secondary btn-lg">View my uploads</a>
+                <a href="/images/upload" class="btn btn-primary btn-lg">Inspect image</a>
+                <a href="/images" class="btn btn-outline-secondary btn-lg">View inspected images</a>
             </Authorized>
             <NotAuthorized>
                 <a href="/Account/Login" class="btn btn-primary btn-lg">Sign in</a>
@@ -26,15 +26,15 @@
 
 <div class="home-grid">
     <section class="info-card">
-        <h2>Template-first flow</h2>
+        <h2>Templates</h2>
         <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an inspection image.</p>
     </section>
     <section class="info-card">
-        <h2>Async processing</h2>
-        <p>The ML service receives <code>image_url</code>, <code>template_url</code>, <code>callback_url</code>, and <code>image_id</code>, then posts similarity and defect results back through a shared-secret webhook.</p>
+        <h2>Processing</h2>
+        <p>Upload a reference template with a friendly name and default tolerance, then select it when you upload an inspection image.</p>
     </section>
     <section class="info-card">
         <h2>Outcome rule</h2>
-        <p>Template tolerance seeds the image form, but users can override it. A tolerance of 20 means the image is accepted at 80% similarity or higher.</p>
+         <p>Template tolerance seeds the image form, but users can override it while uploading new image of a label. The tolerance defines the deviation from the 100 % match that is acceptable and the product still can be marked as valid.</p>
     </section>
 </div>
