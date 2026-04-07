@@ -166,15 +166,6 @@ def process_request(request):
                 for name in startup.extractors.keys()
             ]
         }
-
-    # -----------------------------
-    # SEND WEBHOOK (ALWAYS)
-    # -----------------------------
-    try:
-        send_webhook(request.callback_url, result)
-
-    except Exception:
-        logger.exception("Failed to send inspection webhook", extra={"image_id": request.image_id})
     
 
 def _cleanup_expired_cache():

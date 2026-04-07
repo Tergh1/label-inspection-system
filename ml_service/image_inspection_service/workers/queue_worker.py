@@ -30,6 +30,7 @@ signal.signal(signal.SIGINT, handle_shutdown)
 def run_worker():
 
     logger.info("Worker started")
+    print("Worker started")
 
     while not shutdown_requested:
 
@@ -39,14 +40,14 @@ def run_worker():
         try:
             job = get_next_job(db)
 
-            if not job:
-                for _ in range(20):
-                    if shutdown_requested:
-                        break
-                    time.sleep(0.1)
+            if not job: 
+                logger.info("Job not found.")
+                print("Job not found.")     
+                time.sleep(1)
                 continue
 
             logger.info(f"Processing job {job.id}")
+            print(f"Processing job {job.id}")
 
             # -----------------------------
             # PROCESS JOB
@@ -56,7 +57,12 @@ def run_worker():
             # -----------------------------
             # SEND WEBHOOK
             # -----------------------------
-            send_webhook(job.callback_url, result)
+            try:
+                send_webhook(job.callback_url, result)
+
+            except Exception:
+                logger.exception("Failed to send inspection webhook", extra={"image_id": job.image_id})
+                print("Failed to send inspection webhook", extra={"image_id": job.image_id})
 
             # -----------------------------
             # MARK COMPLETE
@@ -64,16 +70,22 @@ def run_worker():
             complete_job(db, job)
 
             logger.info(f"Job {job.id} completed")
+            print(f"Job {job.id} completed")
 
         except Exception as e:
 
             logger.exception(f"Job failed: {job.id if job else 'unknown'}")
+            print(f"Job failed: {job.id if job else 'unknown'}")
 
             if job:
                 fail_job(db, job)
 
         finally:
+            logger.info("DB connection is about to close.")
+            print("DB connection is about to close.")
             db.close()
+            logger.info("DB connection is closed.")
+            print("DB connection is closed.")
 
     # -----------------------------
     # EXIT
