@@ -213,8 +213,7 @@ else
                     <div class="inspection-model-panel">
                         <div class="inspection-model-panel-header">
                             <div class="inspection-model-legend-meta">
-                                <span>@GetSimilarityLabel(activeModelResult.SimilarityPercent)</span>
-                                <span>@GetModelStatusLabel(activeModelResult)</span>
+                                <span>Similarity: @GetSimilarityLabel(activeModelResult.SimilarityPercent)</span>
                                 <span>@activeModelResult.Defects.Count defect@(activeModelResult.Defects.Count == 1 ? string.Empty : "s")</span>
                             </div>
 
@@ -224,7 +223,7 @@ else
                                        class="form-control form-control-color inspection-model-color"
                                        value="@GetModelColor(activeModelResult.Model)"
                                        @onchange="args => SetModelColor(activeModelResult.Model, args.Value?.ToString())"
-                                       aria-label="Choose defect color for @activeModelResult.Model" />
+                                       title="Choose defect color for @activeModelResult.Model" />
                             </label>
                         </div>
                     </div>
@@ -374,7 +373,7 @@ else
         {
             0 => "N/A",
             1 => GetSimilarityLabel(similarities[0]),
-            _ => $"{similarities.Min():0.##}%..{similarities.Max():0.##}%"
+            _ => $"{similarities.Min():0.##}% / {similarities.Max():0.##}%"
         };
     }
 

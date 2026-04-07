@@ -8,17 +8,32 @@ from image_inspection_service.core.database import (
     init_database,
     verify_database_connection,
 )
-from image_inspection_service.workers.queue_worker import run_worker_forever
+from image_inspection_service.workers.queue_worker import (
+    run_worker,
+    shutdown_event
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     verify_database_connection()
     init_database()
     load_resources()
-    worker_thread = Thread(target=run_worker_forever, name="inspection-queue-worker", daemon=True)
-    worker_thread.start()
+
+    workers = []
+
+    for i in range(3):
+        worker = Thread(target=run_worker, daemon=True)
+        worker.start()
+        workers.append(worker)
+
     yield
+
+    shutdown_event.set()
+
+    for w in workers:
+        w.join(timeout=5)
 
 
 app = FastAPI(lifespan=lifespan)

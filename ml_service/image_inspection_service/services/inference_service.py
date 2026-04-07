@@ -1,13 +1,9 @@
 import logging
 import time
 from image_inspection_service.services.image_service import download_image
-from image_inspection_service.services.webhook_service import send_webhook
 
-from image_inspection_service.ml.similarity import compute_similarity
-from image_inspection_service.ml.defect_detection import (
-    compute_defect_map,
-    extract_bounding_boxes
-)
+from image_inspection_service.ml.similarity import  cosine_similarity
+from image_inspection_service.ml.defect_detection import detect_defects
 
 from image_inspection_service.core import startup
 
@@ -109,15 +105,14 @@ def process_request(request):
                 # -----------------------------
                 # SIMILARITY
                 # -----------------------------
-                similarity = compute_similarity(template_features, inspected_features)
+                similarity = cosine_similarity(template_features, inspected_features)
 
                 logger.info(f"{name}: similarity={similarity:.4f}")
 
                 # -----------------------------
                 # DEFECT DETECTION
                 # -----------------------------
-                diff_map = compute_defect_map(template_img, image)
-                defects = extract_bounding_boxes(diff_map)
+                defects = detect_defects(template_img, image)
 
                 print(f"{name}: defects found={len(defects)}")
 
