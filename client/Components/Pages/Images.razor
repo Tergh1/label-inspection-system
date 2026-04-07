@@ -104,7 +104,7 @@ else
                             <td>
                                 <span class="badge transparent-background inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>
                             </td>
-                            <td>@GetSimilarityLabel(image.SimilarityPercent)</td>
+                            <td>@GetSimilarityLabel(image)</td>
                             <td>
                                 @image.TolerancePercent.ToString("0.##")% (Min similarity @image.MinimumSimilarityPercent.ToString("0.##")%)
                             </td>
@@ -191,13 +191,46 @@ else
                 <div>
                     <h2 id="defect-viewer-title" class="h5 mb-1">@imageShowingDefects.OriginalFileName</h2>
                     <p class="text-muted mb-0">
-                        @defects.Count defect@(defects.Count == 1 ? string.Empty : "s")
+                        @GetDefectSummaryLabel()
                     </p>
                 </div>
                 <button type="button" class="btn btn-outline-secondary" @onclick="CloseDefectsModal">Close</button>
             </div>
 
             <div class="inspection-defect-modal-body">
+                <div class="inspection-defect-tabs">
+                    @foreach (var modelResult in modelResults)
+                    {
+                        <button type="button"
+                                class="btn btn-sm @(IsActiveModel(modelResult.Model) ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick="() => SetActiveModel(modelResult.Model)">
+                            @modelResult.Model
+                        </button>
+                    }
+                </div>
+
+                @if (activeModelResult is not null)
+                {
+                    <div class="inspection-model-panel">
+                        <div class="inspection-model-panel-header">
+                            <div class="inspection-model-legend-meta">
+                                <span>@GetSimilarityLabel(activeModelResult.SimilarityPercent)</span>
+                                <span>@GetModelStatusLabel(activeModelResult)</span>
+                                <span>@activeModelResult.Defects.Count defect@(activeModelResult.Defects.Count == 1 ? string.Empty : "s")</span>
+                            </div>
+
+                            <label class="inspection-model-color-picker">
+                                <span>Defect color</span>
+                                <input type="color"
+                                       class="form-control form-control-color inspection-model-color"
+                                       value="@GetModelColor(activeModelResult.Model)"
+                                       @onchange="args => SetModelColor(activeModelResult.Model, args.Value?.ToString())"
+                                       aria-label="Choose defect color for @activeModelResult.Model" />
+                            </label>
+                        </div>
+                    </div>
+                }
+
                 <div class="inspection-defect-viewer">
                     <img @ref="defectImageElement"
                          src="@UrlBuilder.BuildImageUrl(imageShowingDefects)"
@@ -210,20 +243,24 @@ else
                              viewBox="@GetOverlayViewBox()"
                              preserveAspectRatio="xMidYMid meet"
                              aria-hidden="true">
-                            @foreach (var defect in defects)
+                            @if (activeModelResult is not null)
                             {
-                                <rect x="@FormatCoordinate(defect.X)"
-                                      y="@FormatCoordinate(defect.Y)"
-                                      width="@FormatCoordinate(defect.Width)"
-                                      height="@FormatCoordinate(defect.Height)" />
+                                @foreach (var defect in activeModelResult.Defects)
+                                {
+                                    <rect x="@FormatCoordinate(defect.X)"
+                                          y="@FormatCoordinate(defect.Y)"
+                                          width="@FormatCoordinate(defect.Width)"
+                                          height="@FormatCoordinate(defect.Height)"
+                                          stroke="@GetModelColor(activeModelResult.Model)" />
+                                }
                             }
                         </svg>
                     }
                 </div>
 
-                @if (defects.Count == 0)
+                @if (activeModelResult is not null && activeModelResult.Defects.Count == 0)
                 {
-                    <p class="inspection-defect-empty text-muted mb-0">No defect coordinates available for this result.</p>
+                    <p class="inspection-defect-empty text-muted mb-0">No defect coordinates available for this model.</p>
                 }
             </div>
         </div>
@@ -262,11 +299,14 @@ else
     private InspectionImage? imageShowingDefects;
     private InspectionImage? imagePendingDelete;
     private ImageDimensions? defectImageDimensions;
-    private List<DefectBox> defects = [];
+    private readonly Dictionary<string, string> modelColors = new(StringComparer.OrdinalIgnoreCase);
+    private List<ModelResultView> modelResults = [];
+    private string? activeModel;
     private int pageSize = 10;
     private int currentPage = 1;
     private bool defectModalNeedsImageDimensions;
     private string? currentUserId;
+    private static readonly string[] ModelColorPalette = ["#e03131", "#1971c2", "#2f9e44", "#f08c00", "#7048e8", "#0b7285"];
 
     private IEnumerable<InspectionImage> PagedImages => images
         .Skip((currentPage - 1) * pageSize)
@@ -319,6 +359,22 @@ else
         return similarityPercent.HasValue
             ? $"{similarityPercent.Value:0.##}%"
             : "N/A";
+    }
+
+    private static string GetSimilarityLabel(InspectionImage image)
+    {
+        var modelResults = ParseModelResults(image);
+        var similarities = modelResults
+            .Where(x => x.SimilarityPercent.HasValue)
+            .Select(x => x.SimilarityPercent!.Value)
+            .ToList();
+
+        return similarities.Count switch
+        {
+            0 => "N/A",
+            1 => GetSimilarityLabel(similarities[0]),
+            _ => $"{similarities.Min():0.##}%..{similarities.Max():0.##}%"
+        };
     }
 
     private void ToggleMenu(Guid imageId)
@@ -404,7 +460,8 @@ else
         openMenuImageId = null;
         imagePendingDelete = null;
         imageShowingDefects = image;
-        defects = ParseDefects(image.DefectsJson);
+        modelResults = ParseModelResults(image);
+        EnsureModelPresentationState();
         defectImageDimensions = null;
         defectModalNeedsImageDimensions = true;
     }
@@ -412,6 +469,9 @@ else
     private void CloseDefectsModal()
     {
         imageShowingDefects = null;
+        modelResults = [];
+        modelColors.Clear();
+        activeModel = null;
         defectImageDimensions = null;
         defectModalNeedsImageDimensions = false;
     }
@@ -506,7 +566,8 @@ else
             if (imageShowingDefects?.Id == updatedImage.Id)
             {
                 imageShowingDefects = updatedImage;
-                defects = ParseDefects(updatedImage.DefectsJson);
+                modelResults = ParseModelResults(updatedImage);
+                EnsureModelPresentationState();
             }
         }
 
@@ -582,6 +643,54 @@ else
         return $"{kilobytes / 1024d:F1} MB";
     }
 
+    private static List<ModelResultView> ParseModelResults(InspectionImage image)
+    {
+        if (!string.IsNullOrWhiteSpace(image.MlResultsJson))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(image.MlResultsJson);
+                if (document.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    var parsedResults = new List<ModelResultView>();
+
+                    foreach (var element in document.RootElement.EnumerateArray())
+                    {
+                        if (element.ValueKind != JsonValueKind.Object)
+                        {
+                            continue;
+                        }
+
+                        parsedResults.Add(new ModelResultView(
+                            GetStringProperty(element, "model") ?? $"Model {parsedResults.Count + 1}",
+                            TryGetDecimalProperty(element, "similarity_percent"),
+                            GetStringProperty(element, "status"),
+                            GetStringProperty(element, "failure_reason") ?? GetStringProperty(element, "error"),
+                            ParseDefects(element, "defects")));
+                    }
+
+                    if (parsedResults.Count > 0)
+                    {
+                        return parsedResults;
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return
+        [
+            new ModelResultView(
+                "Result",
+                image.SimilarityPercent,
+                null,
+                image.FailureReason,
+                ParseDefects(image.DefectsJson))
+        ];
+    }
+
     private static List<DefectBox> ParseDefects(string? defectsJson)
     {
         if (string.IsNullOrWhiteSpace(defectsJson))
@@ -601,20 +710,12 @@ else
 
             foreach (var element in document.RootElement.EnumerateArray())
             {
-                if (!TryReadDecimal(element, "x", out var x)
-                    || !TryReadDecimal(element, "y", out var y)
-                    || !TryReadDecimal(element, "width", out var width)
-                    || !TryReadDecimal(element, "height", out var height))
+                if (!TryParseDefectElement(element, out var defect))
                 {
                     continue;
                 }
 
-                if (width <= 0 || height <= 0)
-                {
-                    continue;
-                }
-
-                parsedDefects.Add(new DefectBox(x, y, width, height));
+                parsedDefects.Add(defect);
             }
 
             return parsedDefects;
@@ -623,6 +724,43 @@ else
         {
             return [];
         }
+    }
+
+    private static List<DefectBox> ParseDefects(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var defectsElement) || defectsElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var parsedDefects = new List<DefectBox>();
+        foreach (var defectElement in defectsElement.EnumerateArray())
+        {
+            if (TryParseDefectElement(defectElement, out var defect))
+            {
+                parsedDefects.Add(defect);
+            }
+        }
+
+        return parsedDefects;
+    }
+
+    private static bool TryParseDefectElement(JsonElement element, out DefectBox defect)
+    {
+        defect = default!;
+
+        if (!TryReadDecimal(element, "x", out var x)
+            || !TryReadDecimal(element, "y", out var y)
+            || !TryReadDecimal(element, "width", out var width)
+            || !TryReadDecimal(element, "height", out var height)
+            || width <= 0
+            || height <= 0)
+        {
+            return false;
+        }
+
+        defect = new DefectBox(x, y, width, height);
+        return true;
     }
 
     private static bool TryReadDecimal(JsonElement element, string propertyName, out decimal value)
@@ -642,6 +780,21 @@ else
         };
     }
 
+    private static decimal? TryGetDecimalProperty(JsonElement element, string propertyName)
+        => TryReadDecimal(element, propertyName, out var value) ? value : null;
+
+    private static string? GetStringProperty(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        return property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
+    }
+
     private string GetOverlayViewBox()
     {
         if (defectImageDimensions is null)
@@ -656,7 +809,69 @@ else
 
     private static string FormatCoordinate(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 
+    private void EnsureModelPresentationState()
+    {
+        foreach (var result in modelResults)
+        {
+            if (!modelColors.ContainsKey(result.Model))
+            {
+                modelColors[result.Model] = ModelColorPalette[modelColors.Count % ModelColorPalette.Length];
+            }
+        }
+
+        var staleModels = modelColors.Keys.Except(modelResults.Select(x => x.Model), StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var staleModel in staleModels)
+        {
+            modelColors.Remove(staleModel);
+        }
+
+        if (string.IsNullOrWhiteSpace(activeModel) || modelResults.All(x => !string.Equals(x.Model, activeModel, StringComparison.OrdinalIgnoreCase)))
+        {
+            activeModel = modelResults.FirstOrDefault()?.Model;
+        }
+    }
+
+    private bool IsActiveModel(string model)
+        => string.Equals(activeModel, model, StringComparison.OrdinalIgnoreCase);
+
+    private void SetActiveModel(string model) => activeModel = model;
+
+    private string GetModelColor(string model)
+        => modelColors.TryGetValue(model, out var color) ? color : "#e03131";
+
+    private void SetModelColor(string model, string? color)
+    {
+        if (string.IsNullOrWhiteSpace(color))
+        {
+            return;
+        }
+
+        modelColors[model] = color;
+    }
+
+    private string GetDefectSummaryLabel()
+    {
+        var defectCount = modelResults.Sum(x => x.Defects.Count);
+        return $"{defectCount} defect{(defectCount == 1 ? string.Empty : "s")} across {modelResults.Count} model{(modelResults.Count == 1 ? string.Empty : "s")}";
+    }
+
+    private static string GetModelStatusLabel(ModelResultView modelResult)
+    {
+        if (!string.IsNullOrWhiteSpace(modelResult.FailureReason))
+        {
+            return modelResult.FailureReason;
+        }
+
+        return string.IsNullOrWhiteSpace(modelResult.Status)
+            ? "Completed"
+            : modelResult.Status;
+    }
+
+    private ModelResultView? activeModelResult
+        => modelResults.FirstOrDefault(x => string.Equals(x.Model, activeModel, StringComparison.OrdinalIgnoreCase));
+
     private sealed record DefectBox(decimal X, decimal Y, decimal Width, decimal Height);
+    private sealed record ModelResultView(string Model, decimal? SimilarityPercent, string? Status, string? FailureReason, List<DefectBox> Defects);
 
     private sealed class ImageDimensions
     {

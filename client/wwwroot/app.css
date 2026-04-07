@@ -413,8 +413,53 @@ h1:focus {
 .inspection-defect-modal-body {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
     min-height: 0;
+}
+
+.inspection-defect-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.inspection-model-panel {
+    border: 1px solid #d6dae3;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    padding: 0.85rem 1rem;
+}
+
+.inspection-model-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.inspection-model-legend-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    color: #516274;
+}
+
+.inspection-model-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #16364b;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.inspection-model-color {
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    padding: 0.2rem;
+    border-radius: 999px;
 }
 
 .inspection-defect-viewer {
@@ -449,10 +494,8 @@ h1:focus {
 }
 
 .inspection-defect-overlay rect {
-    fill: rgba(217, 45, 32, 0.14);
-    stroke: #d92d20;
-    stroke-width: 1;
-    padding: 20px;
+    fill: transparent;
+    stroke-width: 2;
     vector-effect: non-scaling-stroke;
 }
 
@@ -487,6 +530,10 @@ h1:focus {
     .inspection-defect-modal-header {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .inspection-defect-modal-body {
+        flex-direction: column;
     }
 
     .inspection-defect-viewer {

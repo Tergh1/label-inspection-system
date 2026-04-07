@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using client.Contracts;
 using client.Data;
 using client.Data.Entities;
@@ -18,7 +19,7 @@ public static class MlWebhookEndpoints
 
         endpoints.MapPost(webhookRoute, async (
             HttpContext httpContext,
-            MlWebhookResult payload,
+            MlWebhookResultHolder payload,
             ApplicationDbContext dbContext,
             InspectionUpdateNotifier inspectionUpdateNotifier,
             IOptions<InspectionMlOptions> runtimeOptions,
@@ -44,41 +45,29 @@ public static class MlWebhookEndpoints
 
             inspectionImage.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
-            var failureReason = payload.FailureReason ?? payload.Error;
-            if (!string.IsNullOrWhiteSpace(failureReason))
+            var normalizedResults = payload.Result
+                .Where(static x => x is not null)
+                .Select(static x =>
+                {
+                    x.Model = x.Model.Trim();
+                    x.Error = string.IsNullOrWhiteSpace(x.Error) ? null : x.Error.Trim();
+                    x.FailureReason = string.IsNullOrWhiteSpace(x.FailureReason) ? null : x.FailureReason.Trim();
+                    x.Status = string.IsNullOrWhiteSpace(x.Status) ? null : x.Status.Trim();
+                    return x;
+                })
+                .ToList();
+
+            if (normalizedResults.Count == 0)
             {
-                inspectionImage.ProcessingStatus = ProcessingStatus.Failed;
-                inspectionImage.OutcomeStatus = OutcomeStatus.Pending;
-                inspectionImage.FailureReason = failureReason;
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
-                return Results.Ok(new { status = "updated" });
+                return Results.BadRequest(new { error = "At least one result item is required." });
             }
 
-            if (string.Equals(payload.Status, "processing", StringComparison.OrdinalIgnoreCase))
-            {
-                inspectionImage.ProcessingStatus = ProcessingStatus.Processing;
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
-                return Results.Ok(new { status = "updated" });
-            }
-
-            inspectionImage.ProcessingStatus = ProcessingStatus.Completed;
-            inspectionImage.FailureReason = null;
-            inspectionImage.SimilarityPercent = payload.SimilarityPercent;
-            inspectionImage.DefectsJson = payload.Defects?.ToJsonString(JsonSerializerOptions.Default);
-
-            if (payload.SimilarityPercent.HasValue)
-            {
-                var isValid = payload.SimilarityPercent.Value >= inspectionImage.MinimumSimilarityPercent;
-                inspectionImage.OutcomeStatus = isValid
-                    ? OutcomeStatus.Valid
-                    : OutcomeStatus.Invalid;
-
-                inspectionImage.OutcomeStatus = isValid && payload.Defects is not null && payload.Defects.Count > 0
-                    ? OutcomeStatus.ValidWithDefects
-                    : inspectionImage.OutcomeStatus;
-            }
+            inspectionImage.MlResultsJson = JsonSerializer.Serialize(normalizedResults, JsonSerializerOptions.Default);
+            inspectionImage.SimilarityPercent = GetMinimumSimilarityPercent(normalizedResults);
+            inspectionImage.DefectsJson = BuildCombinedDefectsJson(normalizedResults);
+            inspectionImage.FailureReason = BuildFailureSummary(normalizedResults);
+            inspectionImage.ProcessingStatus = GetProcessingStatus(normalizedResults);
+            inspectionImage.OutcomeStatus = GetOutcomeStatus(normalizedResults, inspectionImage.MinimumSimilarityPercent, inspectionImage.ProcessingStatus);
 
             await dbContext.SaveChangesAsync(cancellationToken);
             await inspectionUpdateNotifier.PublishAsync(inspectionImage.OwnerUserId, inspectionImage.Id);
@@ -97,4 +86,111 @@ public static class MlWebhookEndpoints
 
         return value.StartsWith('/') ? value : $"/{value}";
     }
+
+    private static decimal? GetMinimumSimilarityPercent(IEnumerable<MlWebhookResult> results)
+    {
+        var similarities = results
+            .Where(IsSuccessfulResult)
+            .Where(x => x.SimilarityPercent.HasValue)
+            .Select(x => x.SimilarityPercent!.Value)
+            .ToList();
+
+        return similarities.Count == 0 ? null : similarities.Min();
+    }
+
+    private static string? BuildCombinedDefectsJson(IEnumerable<MlWebhookResult> results)
+    {
+        var defects = new JsonArray();
+
+        foreach (var result in results.Where(IsSuccessfulResult))
+        {
+            if (result.Defects is null)
+            {
+                continue;
+            }
+
+            foreach (var defectNode in result.Defects)
+            {
+                if (defectNode is not JsonObject defectObject)
+                {
+                    continue;
+                }
+
+                var combinedDefect = new JsonObject
+                {
+                    ["model"] = result.Model
+                };
+
+                foreach (var property in defectObject)
+                {
+                    combinedDefect[property.Key] = property.Value?.DeepClone();
+                }
+
+                defects.Add(combinedDefect);
+            }
+        }
+
+        return defects.Count == 0 ? null : defects.ToJsonString(JsonSerializerOptions.Default);
+    }
+
+    private static string? BuildFailureSummary(IEnumerable<MlWebhookResult> results)
+    {
+        var failures = results
+            .Select(x => new
+            {
+                Model = string.IsNullOrWhiteSpace(x.Model) ? "Unknown model" : x.Model,
+                Reason = x.FailureReason ?? x.Error
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.Reason))
+            .Select(x => $"{x.Model}: {x.Reason}")
+            .ToList();
+
+        return failures.Count == 0 ? null : string.Join("; ", failures);
+    }
+
+    private static ProcessingStatus GetProcessingStatus(IEnumerable<MlWebhookResult> results)
+    {
+        if (results.Any(IsProcessingResult))
+        {
+            return ProcessingStatus.Processing;
+        }
+
+        return results.Any(IsSuccessfulResult)
+            ? ProcessingStatus.Completed
+            : ProcessingStatus.Failed;
+    }
+
+    private static OutcomeStatus GetOutcomeStatus(IEnumerable<MlWebhookResult> results, decimal minimumSimilarityPercent, ProcessingStatus processingStatus)
+    {
+        if (processingStatus == ProcessingStatus.Processing)
+        {
+            return OutcomeStatus.Pending;
+        }
+
+        var successfulResults = results.Where(IsSuccessfulResult).ToList();
+        if (successfulResults.Count == 0)
+        {
+            return OutcomeStatus.Pending;
+        }
+
+        if (successfulResults.Any(x => x.Defects is not null && x.Defects.Count > 0))
+        {
+            return OutcomeStatus.ValidWithDefects;
+        }
+
+        if (successfulResults.Any(x => x.SimilarityPercent.HasValue && x.SimilarityPercent.Value < minimumSimilarityPercent))
+        {
+            return OutcomeStatus.Invalid;
+        }
+
+        return OutcomeStatus.Valid;
+    }
+
+    private static bool IsProcessingResult(MlWebhookResult result)
+        => string.Equals(result.Status, "processing", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSuccessfulResult(MlWebhookResult result)
+        => !IsProcessingResult(result)
+           && string.IsNullOrWhiteSpace(result.FailureReason)
+           && string.IsNullOrWhiteSpace(result.Error);
 }

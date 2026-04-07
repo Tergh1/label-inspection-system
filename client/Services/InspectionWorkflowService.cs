@@ -107,6 +107,7 @@ public sealed class InspectionWorkflowService(
         inspectionImage.OutcomeStatus = OutcomeStatus.Pending;
         inspectionImage.SimilarityPercent = null;
         inspectionImage.DefectsJson = null;
+        inspectionImage.MlResultsJson = null;
         inspectionImage.FailureReason = null;
         inspectionImage.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);

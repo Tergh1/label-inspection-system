@@ -40,6 +40,8 @@ public sealed class InspectionImage
 
     public string? DefectsJson { get; set; }
 
+    public string? MlResultsJson { get; set; }
+
     [MaxLength(2000)]
     public string? FailureReason { get; set; }
 

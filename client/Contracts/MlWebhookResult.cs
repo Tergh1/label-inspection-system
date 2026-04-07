@@ -4,9 +4,9 @@ using System.Text.Json.Serialization;
 namespace client.Contracts;
 
 public sealed class MlWebhookResult
-{
-    [JsonPropertyName("image_id")]
-    public string ImageId { get; set; } = string.Empty;
+{    
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
 
     [JsonPropertyName("similarity_percent")]
     public decimal? SimilarityPercent { get; set; }

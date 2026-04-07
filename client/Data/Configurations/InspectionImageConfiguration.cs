@@ -22,6 +22,7 @@ public sealed class InspectionImageConfiguration : IEntityTypeConfiguration<Insp
         builder.Property(x => x.SimilarityPercent).HasPrecision(5, 2);
 
         builder.Property(x => x.DefectsJson).HasColumnType("jsonb");
+        builder.Property(x => x.MlResultsJson).HasColumnType("jsonb");
 
         builder.Property(x => x.ProcessingStatus)
             .HasConversion<string>()
