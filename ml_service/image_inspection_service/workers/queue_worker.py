@@ -95,7 +95,7 @@ def run_worker():
     logger.info("Worker shutting down...")
 
 
-def run_worker_forever(poll_interval_seconds: int = 1, error_backoff_seconds: int = 5):
+def run_worker_forever(poll_interval_seconds: int = 5, error_backoff_seconds: int = 5):
 
     logger.info("Worker started")
     print("Worker started")

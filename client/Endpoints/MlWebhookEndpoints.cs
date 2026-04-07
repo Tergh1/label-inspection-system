@@ -45,7 +45,7 @@ public static class MlWebhookEndpoints
 
             inspectionImage.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
-            var normalizedResults = payload.Result
+            var normalizedResults = payload.Results
                 .Where(static x => x is not null)
                 .Select(static x =>
                 {

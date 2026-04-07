@@ -116,7 +116,7 @@ def process_request(request):
                 # -----------------------------
                 # DEFECT DETECTION
                 # -----------------------------
-                diff_map = compute_defect_map(template_features, inspected_features)
+                diff_map = compute_defect_map(template_img, image)
                 defects = extract_bounding_boxes(diff_map)
 
                 print(f"{name}: defects found={len(defects)}")
@@ -124,6 +124,7 @@ def process_request(request):
                 results.append({
                     "model": name,
                     "similarity": similarity,
+                    "similarity_percent": similarity,
                     "defects": defects,
                     "status": "completed"
                 })
@@ -167,6 +168,7 @@ def process_request(request):
             ]
         }
     
+    return result;
 
 def _cleanup_expired_cache():
     now = time.time()

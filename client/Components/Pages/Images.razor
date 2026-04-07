@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.JSInterop
 @using System.Globalization
 @using System.Text.Json
 @using client.Data
@@ -306,6 +305,8 @@ else
     private int currentPage = 1;
     private bool defectModalNeedsImageDimensions;
     private string? currentUserId;
+    private bool isDisposed;
+    private readonly CancellationTokenSource disposeCancellationTokenSource = new();
     private static readonly string[] ModelColorPalette = ["#e03131", "#1971c2", "#2f9e44", "#f08c00", "#7048e8", "#0b7285"];
 
     private IEnumerable<InspectionImage> PagedImages => images
@@ -509,19 +510,61 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        isDisposed = true;
+        disposeCancellationTokenSource.Cancel();
         inspectionUpdateSubscription?.Dispose();
         defectModalDotNetReference?.Dispose();
-        await JSRuntime.InvokeVoidAsync("inspectionDefectViewer.unregisterEscapeHandler");
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("inspectionDefectViewer.unregisterEscapeHandler");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        disposeCancellationTokenSource.Dispose();
     }
 
     private async Task HandleInspectionUpdatedAsync(InspectionUpdateNotification notification)
     {
-        await InvokeAsync(async () =>
+        if (isDisposed || disposeCancellationTokenSource.IsCancellationRequested)
         {
-            var updatedImage = await WorkflowService.GetUserImageAsync(GetCurrentUserId(), notification.ImageId, CancellationToken.None);
-            SyncImage(updatedImage, notification.ImageId);
-            StateHasChanged();
-        });
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (isDisposed || disposeCancellationTokenSource.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                var updatedImage = await WorkflowService.GetUserImageAsync(
+                    GetCurrentUserId(),
+                    notification.ImageId,
+                    disposeCancellationTokenSource.Token);
+
+                if (isDisposed || disposeCancellationTokenSource.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                SyncImage(updatedImage, notification.ImageId);
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+        }
     }
 
     private void ReplaceImage(InspectionImage updatedImage)
