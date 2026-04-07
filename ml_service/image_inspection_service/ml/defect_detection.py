@@ -1,26 +1,43 @@
-import numpy as np
+import torch
+import torch.nn.functional as F
 
 
-def detect_defects(template_img, test_img):
+def compute_defect_map(vec1, vec2):
 
-    template = np.array(template_img)
-    test = np.array(test_img)
+    # ensure same shape
+    vec1 = F.normalize(vec1, dim=0)
+    vec2 = F.normalize(vec2, dim=0)
 
-    diff = np.abs(template.astype(int) - test.astype(int))
+    diff = torch.abs(vec1 - vec2)
 
-    mask = diff.mean(axis=2) > 30
+    # reshape to pseudo spatial map (best effort)
+    size = int(diff.shape[0] ** 0.5)
 
-    ys, xs = np.where(mask)
+    if size * size != diff.shape[0]:
+        return []  # cannot map spatially
 
-    if len(xs) == 0:
+    diff_map = diff.view(size, size)
+
+    return diff_map
+
+
+def extract_bounding_boxes(diff_map, threshold=0.3):
+
+    if diff_map is None or len(diff_map) == 0:
         return []
 
-    x1, x2 = xs.min(), xs.max()
-    y1, y2 = ys.min(), ys.max()
+    mask = diff_map > threshold
 
-    return [{
-        "x": int(x1),
-        "y": int(y1),
-        "width": int(x2 - x1),
-        "height": int(y2 - y1)
-    }]
+    coords = torch.nonzero(mask)
+
+    boxes = []
+
+    for y, x in coords:
+        boxes.append({
+            "x": int(x.item()),
+            "y": int(y.item()),
+            "width": 1,
+            "height": 1
+        })
+
+    return boxes

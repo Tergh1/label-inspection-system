@@ -1,11 +1,12 @@
-from image_inspection_service.ml.model_loader import load_model
+from image_inspection_service.ml.feature_extractors import (
+    get_resnet,
+    get_efficientnet
+)
 
-
-model = None
+extractors = {}
 
 
 def load_resources():
-    global model
 
-    model = load_model()
-    print("ResNet model loaded")
+    extractors["resnet"] = get_resnet()
+    extractors["efficientnet"] = get_efficientnet()

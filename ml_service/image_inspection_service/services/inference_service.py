@@ -1,18 +1,22 @@
 import logging
-
-
+import time
 from image_inspection_service.services.image_service import download_image
 from image_inspection_service.services.webhook_service import send_webhook
 
-from image_inspection_service.ml.feature_extractor import extract_features
-from image_inspection_service.ml.similarity import cosine_similarity
-from image_inspection_service.ml.defect_detection import detect_defects
+from image_inspection_service.ml.similarity import compute_similarity
+from image_inspection_service.ml.defect_detection import (
+    compute_defect_map,
+    extract_bounding_boxes
+)
 
 from image_inspection_service.core import startup
 
 
 logger = logging.getLogger(__name__)
+
 template_cache = {}
+CACHE_TTL_SECONDS = 600   # 10 minutes
+CACHE_MAX_SIZE = 25
 
 
 def process_request(request):
@@ -20,35 +24,50 @@ def process_request(request):
         print(f"Processing inspection request for image_id: {request.image_id}")
 
         # -----------------------------
-        # TEMPLATE HANDLING
+        # TEMPLATE HANDLING (WITH CACHE)
         # -----------------------------
 
         print(f"Downloading template and extracting features if not in cache from URL: {request.template_url}")
+
         if request.template_url not in template_cache:
 
-            logger.info("Downloading template image")
-
+            logger.info(f"Downloading template image from URL: {request.template_url}")
             template_img = download_image(request.template_url)
 
-            logger.info("Extracting template features")
-            print("Extracting template features")
-            if not startup.model:
-                print("Model is none.")
-            if not template_img:
-                print("Template img is none")
-                
-            template_features = extract_features(startup.model, template_img)
+            if template_img is None:
+                raise RuntimeError("Template image is None")
 
+            logger.info("Extracting template features for all models")
+
+            template_features_per_model = {}
+
+            for name, extractor in startup.extractors.items():
+
+                try:
+                    logger.info(f"Extracting template features using {name}")
+                    features = extractor.extract(template_img)
+                    template_features_per_model[name] = features.detach().cpu()
+
+                except Exception as e:
+                    logger.exception(f"Failed extracting template features for model {name}")
+                    template_features_per_model[name] = None
+
+            _cleanup_expired_cache()
+            _ensure_cache_limit()
             template_cache[request.template_url] = {
                 "image": template_img,
-                "features": template_features
-            }
+                "features_by_model": template_features_per_model,
+                "timestamp": time.time()
+                }
+            logger.info(f"Cache size: {len(template_cache)}")
 
         template_data = template_cache[request.template_url]
+        template_data["timestamp"] = time.time()
 
         template_img = template_data["image"]
-        template_features = template_data["features"]
-        print(f"Template and features extracted from cache successfully.")
+        template_features_per_model = template_data["features_by_model"]
+
+        print("Template and features loaded from cache successfully.")
 
         # -----------------------------
         # DOWNLOAD INSPECTED IMAGE
@@ -56,53 +75,126 @@ def process_request(request):
 
         print(f"Downloading image from URL: {request.image_url}")
         image = download_image(request.image_url)
+
+        if image is None:
+            raise RuntimeError("Inspected image is None")
+
         print(f"Image downloaded successfully for image_id: {request.image_id}")
-        print(f"Resizing image based on the template size")
+
+        # resize to match template
+        print("Resizing image based on template size")
         image = image.resize(template_img.size)
-        print(f"Resized image based on the template size")
 
         # -----------------------------
-        # FEATURE EXTRACTION
+        # PROCESS PER MODEL (SEQUENTIAL)
         # -----------------------------
 
-        inspected_features = extract_features(startup.model, image)
-        print(f"Features extracted successfully for image_id: {request.image_id} and template")
+        results = []
+
+        for name, extractor in startup.extractors.items():
+
+            logger.info(f"Processing model: {name}")
+
+            try:
+                template_features = template_features_per_model.get(name)
+
+                if template_features is None:
+                    raise RuntimeError("Template features missing")
+
+                # -----------------------------
+                # FEATURE EXTRACTION
+                # -----------------------------
+                inspected_features = extractor.extract(image)
+
+                # -----------------------------
+                # SIMILARITY
+                # -----------------------------
+                similarity = compute_similarity(template_features, inspected_features)
+
+                logger.info(f"{name}: similarity={similarity:.4f}")
+
+                # -----------------------------
+                # DEFECT DETECTION
+                # -----------------------------
+                diff_map = compute_defect_map(template_features, inspected_features)
+                defects = extract_bounding_boxes(diff_map)
+
+                print(f"{name}: defects found={len(defects)}")
+
+                results.append({
+                    "model": name,
+                    "similarity": similarity,
+                    "defects": defects,
+                    "status": "completed"
+                })
+
+            except Exception as e:
+
+                logger.exception(f"Model {name} failed")
+
+                results.append({
+                    "model": name,
+                    "similarity": None,
+                    "defects": [],
+                    "status": "failed",
+                    "error": str(e)
+                })
 
         # -----------------------------
-        # SIMILARITY CALCULATION
-        # -----------------------------
-
-        similarity = cosine_similarity(template_features, inspected_features)
-        print(f"Similarity calculated successfully for image_id: {request.image_id}, similarity: {similarity:.4f}")
-
-        # -----------------------------
-        # DEFECT DETECTION
-        # -----------------------------
-
-        defects = detect_defects(template_img, image)
-        print(f"Defects detected successfully for image_id: {request.image_id}, defects found: {len(defects)}")
-
-        # -----------------------------
-        # RESULT
+        # FINAL RESULT
         # -----------------------------
 
         result = {
             "image_id": request.image_id,
-            "similarity_percent": similarity,
-            "defects": defects
+            "results": results
         }
+
     except Exception as exc:
+
         logger.exception("Failed to process inspection request", extra={"image_id": request.image_id})
+
         result = {
             "image_id": request.image_id,
-            "failure_reason": str(exc)
+            "results": [
+                {
+                    "model": name,
+                    "similarity": None,
+                    "defects": [],
+                    "status": "failed",
+                    "error": str(exc)
+                }
+                for name in startup.extractors.keys()
+            ]
         }
 
-        # -----------------------------
-        # SEND WEBHOOK
-        # -----------------------------
-
+    # -----------------------------
+    # SEND WEBHOOK (ALWAYS)
+    # -----------------------------
     try:
         send_webhook(request.callback_url, result)
+
     except Exception:
         logger.exception("Failed to send inspection webhook", extra={"image_id": request.image_id})
+    
+
+def _cleanup_expired_cache():
+    now = time.time()
+
+    expired_keys = [
+        key for key, value in template_cache.items()
+        if now - value["timestamp"] > CACHE_TTL_SECONDS
+    ]
+
+    for key in expired_keys:
+        del template_cache[key]
+
+def _ensure_cache_limit():
+    if len(template_cache) <= CACHE_MAX_SIZE:
+        return
+
+    oldest_key = min(
+        template_cache.keys(),
+        key=lambda k: template_cache[k]["timestamp"]
+    )
+
+    del template_cache[oldest_key]

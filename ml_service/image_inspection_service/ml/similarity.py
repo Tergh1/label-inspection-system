@@ -1,13 +1,7 @@
-import numpy as np
+import torch.nn.functional as F
 
 
-def cosine_similarity(a, b):
-
-    dot = np.dot(a, b)
-
-    norm_a = np.linalg.norm(a)
-    norm_b = np.linalg.norm(b)
-
-    similarity = dot / (norm_a * norm_b)
-
-    return float(similarity * 100)
+def compute_similarity(vec1, vec2):
+    vec1 = F.normalize(vec1, dim=0)
+    vec2 = F.normalize(vec2, dim=0)
+    return F.cosine_similarity(vec1, vec2, dim=0).item()

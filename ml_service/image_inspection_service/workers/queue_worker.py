@@ -1,69 +1,81 @@
 import time
-from sqlalchemy import text
-from image_inspection_service.core.database import engine
+import signal
+import logging
+
+from image_inspection_service.core.database import SessionLocal
+from image_inspection_service.services.queue_service import (
+    get_next_job,
+    complete_job,
+    fail_job
+)
 from image_inspection_service.services.inference_service import process_request
+from image_inspection_service.services.webhook_service import send_webhook
 
 
-def recover_stuck_jobs():
+logger = logging.getLogger(__name__)
 
-    with engine.begin() as conn:
-
-        conn.execute(text("""
-        UPDATE inspection_queue
-        SET status='pending'
-        WHERE status='processing'
-        AND started_at < NOW() - INTERVAL '5 minutes'
-        """))
+shutdown_requested = False
 
 
-def worker_loop():
+def handle_shutdown(signum, frame):
+    global shutdown_requested
+    logger.info(f"Shutdown signal received: {signum}")
+    shutdown_requested = True
 
-    while True:
 
-        recover_stuck_jobs()
-        
-        with engine.begin() as conn:
+signal.signal(signal.SIGTERM, handle_shutdown)
+signal.signal(signal.SIGINT, handle_shutdown)
 
-            job = conn.execute(text("""
-                SELECT *
-                FROM inspection_queue
-                WHERE status='pending'
-                ORDER BY created_at
-                FOR UPDATE SKIP LOCKED
-                LIMIT 1
-            """)).fetchone()
 
-            if not job:
-                time.sleep(3)
-                continue
+def run_worker():
 
-            conn.execute(text("""
-                UPDATE inspection_queue
-                SET status='processing',
-                    started_at = NOW()
-                WHERE id=:id
-                """), {"id": job.id})
+    logger.info("Worker started")
+
+    while not shutdown_requested:
+
+        db = SessionLocal()
+        job = None
 
         try:
+            job = get_next_job(db)
 
-            process_request(job)
+            if not job:
+                for _ in range(20):
+                    if shutdown_requested:
+                        break
+                    time.sleep(0.1)
+                continue
 
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    UPDATE inspection_queue
-                    SET status='completed'
-                    WHERE id=:id
-                """), {"id": job.id})
+            logger.info(f"Processing job {job.id}")
 
-        except Exception:
+            # -----------------------------
+            # PROCESS JOB
+            # -----------------------------
+            result = process_request(job)
 
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    UPDATE inspection_queue
-                    SET retries = retries + 1,
-                        status = CASE
-                            WHEN retries + 1 >= max_retries THEN 'failed'
-                            ELSE 'pending'
-                        END
-                    WHERE id=:id
-                """), {"id": job.id})
+            # -----------------------------
+            # SEND WEBHOOK
+            # -----------------------------
+            send_webhook(job.callback_url, result)
+
+            # -----------------------------
+            # MARK COMPLETE
+            # -----------------------------
+            complete_job(db, job)
+
+            logger.info(f"Job {job.id} completed")
+
+        except Exception as e:
+
+            logger.exception(f"Job failed: {job.id if job else 'unknown'}")
+
+            if job:
+                fail_job(db, job)
+
+        finally:
+            db.close()
+
+    # -----------------------------
+    # EXIT
+    # -----------------------------
+    logger.info("Worker shutting down...")

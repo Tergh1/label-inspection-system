@@ -1,30 +1,23 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 from image_inspection_service.schemas.dto import InspectRequest
 from image_inspection_service.security import verify_api_key
-
+from image_inspection_service.services.queue_service import create_job
 from image_inspection_service.core.database import SessionLocal
-from image_inspection_service.models.queue import InspectionQueue
 
 router = APIRouter()
 
-
-@router.post("/inspect-async")
-async def inspect_async(
-    request: InspectRequest,
-    auth=Depends(verify_api_key)
-):
-
+def get_db():
     db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    job = InspectionQueue(
-        image_id=request.image_id,
-        template_url=request.template_url,
-        image_url=request.image_url,
-        callback_url=request.callback_url
-    )
+@router.post("/inspect-async", operation_id="inspect_async")
+async def inspect_async(request: InspectRequest, db: Session = Depends(get_db), auth=Depends(verify_api_key)):
 
-    db.add(job)
-    db.commit()
+    job = create_job(db, request.model_dump())
 
     return {
         "status": "queued",
