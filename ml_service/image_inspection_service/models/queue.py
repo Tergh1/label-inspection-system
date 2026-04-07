@@ -1,10 +1,8 @@
 from sqlalchemy import Column, String, Integer, DateTime, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
+from image_inspection_service.core.database import Base
 import uuid
 from datetime import datetime, timezone
-
-Base = declarative_base()
 
 
 class InspectionJob(Base):
@@ -20,5 +18,5 @@ class InspectionJob(Base):
     retries = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     started_at = Column(DateTime, nullable=True)
