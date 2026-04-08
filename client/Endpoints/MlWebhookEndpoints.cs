@@ -173,14 +173,14 @@ public static class MlWebhookEndpoints
             return OutcomeStatus.Pending;
         }
 
-        if (successfulResults.Any(x => x.Defects is not null && x.Defects.Count > 0))
-        {
-            return OutcomeStatus.ValidWithDefects;
-        }
-
         if (successfulResults.Any(x => x.SimilarityPercent.HasValue && x.SimilarityPercent.Value < minimumSimilarityPercent))
         {
             return OutcomeStatus.Invalid;
+        }
+
+        if (successfulResults.Any(x => x.Defects is not null && x.Defects.Count > 0))
+        {
+            return OutcomeStatus.ValidWithDefects;
         }
 
         return OutcomeStatus.Valid;
