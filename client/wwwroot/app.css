@@ -457,8 +457,27 @@ h1:focus {
 
 .inspection-model-color {
     inline-size: 2.5rem;
-    block-size: 2.5rem;
-    padding: 0.2rem;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.inspection-model-color::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.inspection-model-color::-webkit-color-swatch {
+    border: none;
+    border-radius: 999px;
+}
+
+.inspection-model-color::-moz-color-swatch {
+    border: none;
     border-radius: 999px;
 }
 
