@@ -463,7 +463,6 @@ h1:focus {
 }
 
 .inspection-defect-viewer {
-    position: relative;
     display: grid;
     place-items: center;
     flex: 1;
@@ -474,6 +473,14 @@ h1:focus {
     background:
         linear-gradient(135deg, rgba(199, 213, 224, 0.16), rgba(255, 255, 255, 0)),
         repeating-conic-gradient(from 45deg, #f4f4f5 0% 25%, #ececee 0% 50%) 50% / 20px 20px;
+}
+
+.inspection-defect-stage {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    max-height: calc(92vh - 10rem);
+    line-height: 0;
 }
 
 .inspection-defect-image {
@@ -490,7 +497,7 @@ h1:focus {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .inspection-defect-overlay rect {

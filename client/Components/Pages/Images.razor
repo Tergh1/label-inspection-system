@@ -230,30 +230,32 @@ else
                 }
 
                 <div class="inspection-defect-viewer">
-                    <img @ref="defectImageElement"
-                         src="@UrlBuilder.BuildImageUrl(imageShowingDefects)"
-                         alt="@imageShowingDefects.OriginalFileName"
-                         class="inspection-defect-image" />
+                    <div class="inspection-defect-stage">
+                        <img @ref="defectImageElement"
+                             src="@UrlBuilder.BuildImageUrl(imageShowingDefects)"
+                             alt="@imageShowingDefects.OriginalFileName"
+                             class="inspection-defect-image" />
 
-                    @if (defectImageDimensions is not null)
-                    {
-                        <svg class="inspection-defect-overlay"
-                             viewBox="@GetOverlayViewBox()"
-                             preserveAspectRatio="xMidYMid meet"
-                             aria-hidden="true">
-                            @if (activeModelResult is not null)
-                            {
-                                @foreach (var defect in activeModelResult.Defects)
+                        @if (defectImageDimensions is not null)
+                        {
+                            <svg class="inspection-defect-overlay"
+                                 viewBox="@GetOverlayViewBox()"
+                                 preserveAspectRatio="xMidYMid meet"
+                                 aria-hidden="true">
+                                @if (activeModelResult is not null)
                                 {
-                                    <rect x="@FormatCoordinate(defect.X)"
-                                          y="@FormatCoordinate(defect.Y)"
-                                          width="@FormatCoordinate(defect.Width)"
-                                          height="@FormatCoordinate(defect.Height)"
-                                          stroke="@GetModelColor(activeModelResult.Model)" />
+                                    @foreach (var defect in activeModelResult.Defects)
+                                    {
+                                        <rect x="@FormatCoordinate(defect.X)"
+                                              y="@FormatCoordinate(defect.Y)"
+                                              width="@FormatCoordinate(defect.Width)"
+                                              height="@FormatCoordinate(defect.Height)"
+                                              stroke="@GetModelColor(activeModelResult.Model)" />
+                                    }
                                 }
-                            }
-                        </svg>
-                    }
+                            </svg>
+                        }
+                    </div>
                 </div>
 
                 @if (activeModelResult is not null && activeModelResult.Defects.Count == 0)
