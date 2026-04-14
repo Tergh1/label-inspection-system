@@ -72,11 +72,11 @@ else
                     <tr>
                         <th scope="col">Preview</th>
                         <th scope="col">Image</th>
-                        <th scope="col">Processing</th>
-                        <th scope="col">Outcome</th>
-                        <th scope="col">Similarity</th>
                         <th scope="col">Tolerance</th>
+                        <th scope="col">Processing Status</th>
                         <th scope="col">Failure</th>
+                        <th scope="col">Inspection Status</th>
+                        <th scope="col">Calculated Similarity</th>
                         <th scope="col" class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -99,15 +99,34 @@ else
                                     }
                                 </div>
                             </td>
+                            <td>
+                                @image.TolerancePercent.ToString("0.##")% (Acceptance similarity: @image.MinimumSimilarityPercent.ToString("0.##")%)
+                            </td>
                             <td>@image.ProcessingStatus</td>
+                            <td>@(string.IsNullOrWhiteSpace(image.FailureReason) ? "-" : image.FailureReason)</td>
                             <td>
                                 <span class="badge transparent-background inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>
                             </td>
-                            <td>@GetSimilarityLabel(image)</td>
                             <td>
-                                @image.TolerancePercent.ToString("0.##")% (Min similarity @image.MinimumSimilarityPercent.ToString("0.##")%)
-                            </td>
-                            <td>@(string.IsNullOrWhiteSpace(image.FailureReason) ? "-" : image.FailureReason)</td>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            @foreach (ModelResultView modelResult in GetSimilarityValues(image))
+                                            {
+                                                <th>@modelResult.Model</th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            @foreach (ModelResultView modelResult in GetSimilarityValues(image))
+                                            {
+                                                <td style="width: 5rem;">@(modelResult.SimilarityPercent?.ToString("0.##") + "%")</td>
+                                            }
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td> 
                             <td class="text-end">
                                 <div class="inspection-row-actions">
                                     <button type="button"
@@ -361,6 +380,14 @@ else
         return similarityPercent.HasValue
             ? $"{similarityPercent.Value:0.##}%"
             : "N/A";
+    }
+
+    private static List<ModelResultView> GetSimilarityValues(InspectionImage image)
+    {
+        List<ModelResultView>? modelResults = new List<ModelResultView>();
+        modelResults.AddRange(ParseModelResults(image));
+
+        return modelResults;
     }
 
     private static string GetSimilarityLabel(InspectionImage image)

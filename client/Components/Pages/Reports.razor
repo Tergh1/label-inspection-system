@@ -1,0 +1,172 @@
+@page "/reports"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.Globalization
+@using System.Text.Json
+@using client.Data
+@using client.Data.Entities
+@using client.Services
+@attribute [Authorize]
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
+@inject UserManager<ApplicationUser> UserManager
+@inject InspectionUpdateNotifier InspectionUpdateNotifier
+@inject InspectionWorkflowService WorkflowService
+@inject InspectionUrlBuilder UrlBuilder
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="page-title">Reports</h1>
+        <p class="text-muted mb-0">Reports with statistics</p>
+    </div>
+</div>
+<div>
+    <form action="/reports">
+        <label for="select-template">Select Template:</label>
+        <select name="select-template" id="select-template">
+            <option value="MyTemplateId">My template name</option>
+            <option value="OtherTemplateId">Other template name</option>
+        </select>
+        <label for="select-model">Select Model:</label>
+        <select name="select-model" id="select-model">
+            <option value="Resnet18">Resnet18</option>
+            <option value="OtherTemplateId">EfficientNet-B0</option>
+        </select>
+        <input type="submit" class="btn btn-primary" value="View Report">
+    </form>
+</div>
+
+@* @if (isLoading)
+{
+    <p>Loading reports...</p>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <div class="alert alert-danger" role="alert">@loadError</div>
+}
+else if (images.Count == 0)
+{
+    <div class="empty-state">
+        <h2>No images yet</h2>
+        <p>Start by uploading image(s) for a report.</p>
+        <a href="/images/upload" class="btn btn-primary">Upload image</a>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@statusMessage</div>
+    } *@
+
+    <div class="inspection-table-panel">
+        <div class="inspection-table-toolbar">
+
+            <div class="inspection-page-size">
+                <label class="form-label mb-0" for="page-size">Rows per page</label>
+                <select id="page-size" class="form-select form-select-sm" value="1">
+                    10
+                </select>
+                <a href="" class="btn btn-primary">Export To Excel</a>
+            </div>
+        </div>
+        <div class="info-card">
+            <h3>Statistics</h3>
+            <p>Number of templates: 1</p>
+            <p>Number of models: 2</p>
+            <p>Results of processing: 0 Pending, 1 Completed, 0 Failed </p>
+            <p>Inspected images: 1</p>
+            <p>Results of inspection: 0 Valid, 1 ValidWithDefects, 0 Invalid </p>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle report-table">
+                <thead>
+                    <tr>
+                        <th scope="col" class="align-middle">Template</th>
+                        <th scope="col" class="align-middle">Image</th>
+                        <th scope="col" class="align-middle">Processing Status</th>
+                        <th scope="col" class="align-middle">Uploaded</th>
+                        <th scope="col" class="align-middle">Acceptance Similarity</th>
+                        <th scope="col" class="align-middle">Calculated Similarity Per Model</th>
+                        <th scope="col" class="align-middle">Inspection Status</th>
+                        <th scope="col" class="align-middle">Number Of Defects Per Model</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @* @foreach (var image in PagedImages)
+                    { *@
+                        <tr>
+                            <td>
+                                <div>My template name</div>
+                            </td>
+                            <td>
+                                <div>My image name</div>
+                            </td>
+                            <td>
+                                <div>Completed</div>
+                            </td>
+                            <td>
+                                <div>LocalDateTime</div>
+                            </td>
+                            <td> MinimumSimilarityPercent</td>
+                            <td> 
+                                <table>
+                                    <tbody>
+                                        <tr>
+                                            <td>Resnet18</td>
+                                            <td>EfficientNet-B0</td>
+                                        </tr>
+                                        <tr>
+                                            <td>98.95%</td>
+                                            <td>95.95%</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+
+                            <td>
+                                ValidWithDefects
+                            </td>
+                            <td>
+                                <table>
+                                    <tbody>
+                                        <tr>
+                                            <td>Resnet18</td>
+                                            <td>EfficientNet-B0</td>
+                                        </tr>
+                                        <tr>
+                                            <td>1</td>
+                                            <td>1</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    @* } *@
+                </tbody>
+            </table>
+        </div>
+
+        <div class="inspection-pagination">
+            <button type="button" class="btn btn-outline-secondary btn-sm">
+                Previous
+            </button>
+
+            <div class="inspection-page-list" role="navigation" aria-label="Uploaded images pages">
+                @* @foreach (var pageNumber in PageNumbers)
+                { *@
+                    <button type="button"
+                            class="btn btn-sm @(1 == 1 ? "btn-primary" : "btn-outline-secondary")">
+                        1
+                    </button>
+                @* } *@
+            </div>
+
+            <button type="button" class="btn btn-outline-secondary btn-sm" >
+                Next
+            </button>
+        </div>
+    </div>

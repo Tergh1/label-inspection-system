@@ -208,14 +208,14 @@ h1:focus {
     min-width: 5rem;
 }
 
-.inspection-table {
+.inspection-table, .report-table {
     margin-bottom: 0;
     width: 100%;
     table-layout: fixed;
     font-size: 0.8rem;
 }
 
-.inspection-table th {
+.inspection-table th, .report-table th {
     white-space: normal;
     color: #0e6185;
 }
@@ -243,7 +243,7 @@ h1:focus {
 
 .inspection-table th:nth-child(5),
 .inspection-table td:nth-child(5) {
-    width: 6rem;
+    width: 8rem;
 }
 
 .inspection-table th:nth-child(6),
@@ -304,12 +304,12 @@ h1:focus {
 
 .inspection-template-table th:nth-child(2),
 .inspection-template-table td:nth-child(2) {
-    width: 12rem;
+    width: 6rem;
 }
 
 .inspection-template-table th:nth-child(3),
 .inspection-template-table td:nth-child(3) {
-    width: 18rem;
+    width: 9rem;
 }
 
 .inspection-template-table th:nth-child(4),
