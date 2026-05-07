@@ -3,18 +3,17 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using System.Globalization
-@using System.Text.Json
+@using System.Web
 @using client.Data
 @using client.Data.Entities
 @using client.Services
 @attribute [Authorize]
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject IJSRuntime JSRuntime
 @inject UserManager<ApplicationUser> UserManager
-@inject InspectionUpdateNotifier InspectionUpdateNotifier
-@inject InspectionWorkflowService WorkflowService
-@inject InspectionUrlBuilder UrlBuilder
+@inject ReportQueryService ReportQueryService
+
+<PageTitle>Reports</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
@@ -22,23 +21,71 @@
         <p class="text-muted mb-0">Reports with statistics</p>
     </div>
 </div>
-<div>
-    <form action="/reports">
-        <label for="select-template">Select Template:</label>
-        <select name="select-template" id="select-template">
-            <option value="MyTemplateId">My template name</option>
-            <option value="OtherTemplateId">Other template name</option>
-        </select>
-        <label for="select-model">Select Model:</label>
-        <select name="select-model" id="select-model">
-            <option value="Resnet18">Resnet18</option>
-            <option value="OtherTemplateId">EfficientNet-B0</option>
-        </select>
-        <input type="submit" class="btn btn-primary" value="View Report">
-    </form>
-</div>
 
-@* @if (isLoading)
+<form action="/reports" method="get" class="report-filter-bar">
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-template">Template</label>
+        <select name="templateId" id="filter-template" class="form-select form-select-sm">
+            <option value="">All</option>
+            @foreach (var template in options.Templates)
+            {
+                <option value="@template.Id" selected="@(FilterTemplateId == template.Id)">@template.FriendlyName</option>
+            }
+        </select>
+    </div>
+
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-model">Model</label>
+        <select name="modelName" id="filter-model" class="form-select form-select-sm">
+            <option value="">All</option>
+            @foreach (var modelName in options.ModelNames)
+            {
+                <option value="@modelName" selected="@(string.Equals(FilterModelName, modelName, StringComparison.OrdinalIgnoreCase))">@modelName</option>
+            }
+        </select>
+    </div>
+
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-processing">Processing Status</label>
+        <select name="processingStatus" id="filter-processing" class="form-select form-select-sm">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<ProcessingStatus>())
+            {
+                <option value="@status" selected="@(FilterProcessingStatus == status)">@status</option>
+            }
+        </select>
+    </div>
+
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-outcome">Inspection Status</label>
+        <select name="outcomeStatus" id="filter-outcome" class="form-select form-select-sm">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<OutcomeStatus>())
+            {
+                <option value="@status" selected="@(FilterOutcomeStatus == status)">@status</option>
+            }
+        </select>
+    </div>
+
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-from">Uploaded From</label>
+        <input type="date" name="uploadedFrom" id="filter-from" class="form-control form-control-sm"
+               value="@FilterUploadedFrom?.ToString("yyyy-MM-dd")" />
+    </div>
+
+    <div class="report-filter-field">
+        <label class="form-label" for="filter-to">Uploaded To</label>
+        <input type="date" name="uploadedTo" id="filter-to" class="form-control form-control-sm"
+               value="@FilterUploadedTo?.ToString("yyyy-MM-dd")" />
+    </div>
+
+    <div class="report-filter-actions">
+        <button type="submit" class="btn btn-primary">View Report</button>
+        <a href="/reports" class="btn btn-link">Clear filters</a>
+    </div>
+</form>
+
+@if (isLoading)
 {
     <p>Loading reports...</p>
 }
@@ -56,117 +103,323 @@ else if (images.Count == 0)
 }
 else
 {
-    @if (!string.IsNullOrWhiteSpace(statusMessage))
-    {
-        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@statusMessage</div>
-    } *@
-
     <div class="inspection-table-panel">
         <div class="inspection-table-toolbar">
+            <div class="text-muted small">
+                Showing @StartItemIndex-@EndItemIndex of @filteredImages.Count results
+            </div>
 
             <div class="inspection-page-size">
                 <label class="form-label mb-0" for="page-size">Rows per page</label>
-                <select id="page-size" class="form-select form-select-sm" value="1">
-                    10
+                <select id="page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged">
+                    @foreach (var size in PageSizeOptions)
+                    {
+                        <option value="@size">@size</option>
+                    }
                 </select>
-                <a href="" class="btn btn-primary">Export To Excel</a>
+                <a href="@BuildExportUrl("csv")" class="btn btn-outline-primary btn-sm">Export CSV</a>
+                <a href="@BuildExportUrl("xlsx")" class="btn btn-primary btn-sm">Export XLSX</a>
             </div>
         </div>
+
         <div class="info-card">
             <h3>Statistics</h3>
-            <p>Number of templates: 1</p>
-            <p>Number of models: 2</p>
-            <p>Results of processing: 0 Pending, 1 Completed, 0 Failed </p>
-            <p>Inspected images: 1</p>
-            <p>Results of inspection: 0 Valid, 1 ValidWithDefects, 0 Invalid </p>
+            <p>Number of templates: @stats.TemplateCount</p>
+            <p>Number of models: @stats.ModelCount</p>
+            <p>
+                Results of processing:
+                @stats.PendingDispatch Pending Dispatch,
+                @stats.Queued Queued,
+                @stats.Processing Processing,
+                @stats.Completed Completed,
+                @stats.Failed Failed
+            </p>
+            <p>Inspected images: @stats.InspectedImages</p>
+            <p>
+                Results of inspection:
+                @stats.OutcomePending Pending,
+                @stats.Valid Valid,
+                @stats.ValidWithDefects ValidWithDefects,
+                @stats.Invalid Invalid
+            </p>
         </div>
 
-        <div class="table-responsive">
-            <table class="table table-hover align-middle report-table">
-                <thead>
-                    <tr>
-                        <th scope="col" class="align-middle">Template</th>
-                        <th scope="col" class="align-middle">Image</th>
-                        <th scope="col" class="align-middle">Processing Status</th>
-                        <th scope="col" class="align-middle">Uploaded</th>
-                        <th scope="col" class="align-middle">Acceptance Similarity</th>
-                        <th scope="col" class="align-middle">Calculated Similarity Per Model</th>
-                        <th scope="col" class="align-middle">Inspection Status</th>
-                        <th scope="col" class="align-middle">Number Of Defects Per Model</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @* @foreach (var image in PagedImages)
-                    { *@
+        @if (filteredImages.Count == 0)
+        {
+            <p class="text-muted">No results match the current filters.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle report-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <div>My template name</div>
-                            </td>
-                            <td>
-                                <div>My image name</div>
-                            </td>
-                            <td>
-                                <div>Completed</div>
-                            </td>
-                            <td>
-                                <div>LocalDateTime</div>
-                            </td>
-                            <td> MinimumSimilarityPercent</td>
-                            <td> 
-                                <table>
-                                    <tbody>
-                                        <tr>
-                                            <td>Resnet18</td>
-                                            <td>EfficientNet-B0</td>
-                                        </tr>
-                                        <tr>
-                                            <td>98.95%</td>
-                                            <td>95.95%</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-
-                            <td>
-                                ValidWithDefects
-                            </td>
-                            <td>
-                                <table>
-                                    <tbody>
-                                        <tr>
-                                            <td>Resnet18</td>
-                                            <td>EfficientNet-B0</td>
-                                        </tr>
-                                        <tr>
-                                            <td>1</td>
-                                            <td>1</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
+                            <th scope="col" class="align-middle">Template</th>
+                            <th scope="col" class="align-middle">Image</th>
+                            <th scope="col" class="align-middle">Processing Status</th>
+                            <th scope="col" class="align-middle">Uploaded</th>
+                            <th scope="col" class="align-middle">Acceptance Similarity</th>
+                            <th scope="col" class="align-middle">Calculated Similarity Per Model</th>
+                            <th scope="col" class="align-middle">Inspection Status</th>
+                            <th scope="col" class="align-middle">Number Of Defects Per Model</th>
                         </tr>
-                    @* } *@
-                </tbody>
-            </table>
-        </div>
-
-        <div class="inspection-pagination">
-            <button type="button" class="btn btn-outline-secondary btn-sm">
-                Previous
-            </button>
-
-            <div class="inspection-page-list" role="navigation" aria-label="Uploaded images pages">
-                @* @foreach (var pageNumber in PageNumbers)
-                { *@
-                    <button type="button"
-                            class="btn btn-sm @(1 == 1 ? "btn-primary" : "btn-outline-secondary")">
-                        1
-                    </button>
-                @* } *@
+                    </thead>
+                    <tbody>
+                        @foreach (var image in PagedImages)
+                        {
+                            var modelResults = InspectionMlResultParser.ParseModelResults(image);
+                            <tr>
+                                <td>
+                                    <div>@(image.Template?.FriendlyName ?? "-")</div>
+                                </td>
+                                <td>
+                                    <div>@image.OriginalFileName</div>
+                                </td>
+                                <td>
+                                    <div>@image.ProcessingStatus</div>
+                                </td>
+                                <td>
+                                    <div>@image.CreatedAtUtc.LocalDateTime.ToString("g")</div>
+                                </td>
+                                <td>@image.MinimumSimilarityPercent.ToString("0.##")%</td>
+                                <td>
+                                    <table>
+                                        <tbody>
+                                            <tr>
+                                                @foreach (var modelResult in modelResults)
+                                                {
+                                                    <td>@modelResult.Model</td>
+                                                }
+                                            </tr>
+                                            <tr>
+                                                @foreach (var modelResult in modelResults)
+                                                {
+                                                    <td>@(modelResult.SimilarityPercent.HasValue ? modelResult.SimilarityPercent.Value.ToString("0.##") + "%" : "N/A")</td>
+                                                }
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                                <td>
+                                    <span class="badge transparent-background inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>
+                                </td>
+                                <td>
+                                    <table>
+                                        <tbody>
+                                            <tr>
+                                                @foreach (var modelResult in modelResults)
+                                                {
+                                                    <td>@modelResult.Model</td>
+                                                }
+                                            </tr>
+                                            <tr>
+                                                @foreach (var modelResult in modelResults)
+                                                {
+                                                    <td>@modelResult.Defects.Count</td>
+                                                }
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
 
-            <button type="button" class="btn btn-outline-secondary btn-sm" >
-                Next
-            </button>
-        </div>
+            <div class="inspection-pagination">
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                    Previous
+                </button>
+
+                <div class="inspection-page-list" role="navigation" aria-label="Report pages">
+                    @foreach (var pageNumber in PageNumbers)
+                    {
+                        <button type="button"
+                                class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick="() => GoToPage(pageNumber)">
+                            @pageNumber
+                        </button>
+                    }
+                </div>
+
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+                    Next
+                </button>
+            </div>
+        }
     </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "templateId")] public Guid? FilterTemplateId { get; set; }
+    [SupplyParameterFromQuery(Name = "modelName")] public string? FilterModelName { get; set; }
+    [SupplyParameterFromQuery(Name = "processingStatus")] public string? FilterProcessingStatusRaw { get; set; }
+    [SupplyParameterFromQuery(Name = "outcomeStatus")] public string? FilterOutcomeStatusRaw { get; set; }
+    [SupplyParameterFromQuery(Name = "uploadedFrom")] public DateTime? FilterUploadedFrom { get; set; }
+    [SupplyParameterFromQuery(Name = "uploadedTo")] public DateTime? FilterUploadedTo { get; set; }
+
+    private ProcessingStatus? FilterProcessingStatus
+        => Enum.TryParse<ProcessingStatus>(FilterProcessingStatusRaw, ignoreCase: true, out var value) ? value : null;
+
+    private OutcomeStatus? FilterOutcomeStatus
+        => Enum.TryParse<OutcomeStatus>(FilterOutcomeStatusRaw, ignoreCase: true, out var value) ? value : null;
+
+    private static readonly int[] PageSizeOptions = [5, 10, 25, 50];
+    private static readonly ReportStatistics ZeroStats = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    private readonly List<InspectionImage> images = [];
+    private bool isLoading = true;
+    private string? loadError;
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string? currentUserId;
+    private ReportFilterOptions options = new([], []);
+    private IReadOnlyList<InspectionImage> filteredImages = [];
+    private ReportStatistics stats = ZeroStats;
+
+    private ReportFilter CurrentFilter => new(
+        FilterTemplateId,
+        string.IsNullOrWhiteSpace(FilterModelName) ? null : FilterModelName,
+        FilterProcessingStatus,
+        FilterOutcomeStatus,
+        FilterUploadedFrom.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(FilterUploadedFrom.Value.Date, DateTimeKind.Utc)) : null,
+        FilterUploadedTo.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(FilterUploadedTo.Value.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc)) : null);
+
+    private IEnumerable<InspectionImage> PagedImages => filteredImages
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(filteredImages.Count / (double)pageSize));
+    private int StartItemIndex => filteredImages.Count == 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
+    private int EndItemIndex => Math.Min(currentPage * pageSize, filteredImages.Count);
+    private IEnumerable<int> PageNumbers => Enumerable.Range(1, TotalPages);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User)
+                ?? throw new InvalidOperationException("Authenticated user could not be resolved.");
+            currentUserId = user.Id;
+
+            var rows = await ReportQueryService.LoadAsync(currentUserId, CancellationToken.None);
+            images.AddRange(rows);
+            options = ReportQueryService.BuildOptions(rows);
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        ApplyFilters();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!isLoading)
+        {
+            ApplyFilters();
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        filteredImages = ReportQueryService.ApplyFilter(images, CurrentFilter);
+        stats = ReportQueryService.ComputeStatistics(filteredImages);
+        currentPage = Math.Min(Math.Max(currentPage, 1), TotalPages);
+    }
+
+    private void HandlePageSizeChanged(ChangeEventArgs args)
+    {
+        if (args.Value is null || !int.TryParse(args.Value.ToString(), out var selectedPageSize))
+        {
+            return;
+        }
+
+        if (!PageSizeOptions.Contains(selectedPageSize))
+        {
+            return;
+        }
+
+        pageSize = selectedPageSize;
+        currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < TotalPages)
+        {
+            currentPage++;
+        }
+    }
+
+    private void GoToPage(int pageNumber)
+    {
+        if (pageNumber >= 1 && pageNumber <= TotalPages)
+        {
+            currentPage = pageNumber;
+        }
+    }
+
+    private string BuildExportUrl(string format)
+    {
+        var query = HttpUtility.ParseQueryString(string.Empty);
+
+        if (FilterTemplateId.HasValue)
+        {
+            query["templateId"] = FilterTemplateId.Value.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(FilterModelName))
+        {
+            query["modelName"] = FilterModelName;
+        }
+
+        if (FilterProcessingStatus.HasValue)
+        {
+            query["processingStatus"] = FilterProcessingStatus.Value.ToString();
+        }
+
+        if (FilterOutcomeStatus.HasValue)
+        {
+            query["outcomeStatus"] = FilterOutcomeStatus.Value.ToString();
+        }
+
+        if (FilterUploadedFrom.HasValue)
+        {
+            query["uploadedFrom"] = FilterUploadedFrom.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        if (FilterUploadedTo.HasValue)
+        {
+            query["uploadedTo"] = FilterUploadedTo.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+
+        var queryString = query.ToString();
+        return string.IsNullOrEmpty(queryString)
+            ? $"/reports/export/{format}"
+            : $"/reports/export/{format}?{queryString}";
+    }
+
+    private static string GetOutcomeBadgeClass(OutcomeStatus status) => status switch
+    {
+        OutcomeStatus.Valid => "bg-success text-white",
+        OutcomeStatus.ValidWithDefects => "bg-warning text-dark",
+        OutcomeStatus.Invalid => "bg-danger text-white",
+        _ => "bg-secondary text-white"
+    };
+}

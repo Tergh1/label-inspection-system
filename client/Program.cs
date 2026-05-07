@@ -46,6 +46,7 @@ builder.Services.AddScoped<InspectionWorkflowService>();
 builder.Services.AddScoped<InspectionTemplateWorkflowService>();
 builder.Services.AddScoped<InspectionFileStorage>();
 builder.Services.AddScoped<InspectionUrlBuilder>();
+builder.Services.AddScoped<ReportQueryService>();
 builder.Services.AddHttpClient<MlInspectionClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<InspectionMlOptions>>().Value;
@@ -84,5 +85,6 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 app.MapInspectionFileEndpoints();
 app.MapMlWebhookEndpoints();
+app.MapReportExportEndpoints();
 
 app.Run();
