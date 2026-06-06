@@ -19,30 +19,30 @@
         <h1 class="page-title">Templates</h1>
         <p class="text-muted mb-0">Uploaded templates of current user.</p>
     </div>
-    <a href="/templates/upload" class="btn btn-primary">Upload template</a>
+    <a href="/templates/upload" class="btn btn-primary" data-testid="templates-upload-link">Upload template</a>
 </div>
 
 @if (isLoading)
 {
-    <p>Loading templates...</p>
+    <p data-testid="templates-loading">Loading templates...</p>
 }
 else if (!string.IsNullOrWhiteSpace(loadError))
 {
-    <div class="alert alert-danger" role="alert">@loadError</div>
+    <div class="alert alert-danger" role="alert" data-testid="templates-load-error">@loadError</div>
 }
 else if (templates.Count == 0)
 {
-    <div class="empty-state">
+    <div class="empty-state" data-testid="templates-empty-state">
         <h2>No templates yet</h2>
         <p>Upload a reference template before sending images for analysis.</p>
-        <a href="/templates/upload" class="btn btn-primary">Upload template</a>
+        <a href="/templates/upload" class="btn btn-primary" data-testid="templates-empty-upload-link">Upload template</a>
     </div>
 }
 else
 {
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
-        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@statusMessage</div>
+        <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert" data-testid="templates-status">@statusMessage</div>
     }
 
     <div class="inspection-table-panel">
@@ -53,7 +53,7 @@ else
 
             <div class="inspection-page-size">
                 <label class="form-label mb-0" for="template-page-size">Rows per page</label>
-                <select id="template-page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged">
+                <select id="template-page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged" data-testid="templates-page-size-select">
                     @foreach (var size in PageSizeOptions)
                     {
                         <option value="@size">@size</option>
@@ -63,7 +63,7 @@ else
         </div>
 
         <div class="table-responsive">
-            <table class="table table-hover align-middle inspection-table inspection-template-table">
+            <table class="table table-hover align-middle inspection-table inspection-template-table" data-testid="templates-table">
                 <thead>
                     <tr>
                         <th scope="col">Preview</th>
@@ -78,18 +78,18 @@ else
                 <tbody>
                     @foreach (var template in PagedTemplates)
                     {
-                        <tr>
+                        <tr data-testid="template-row">
                             <td>
-                                <img src="@UrlBuilder.BuildTemplateUrl(template)" alt="@template.FriendlyName" class="inspection-thumbnail" />
+                                <img src="@UrlBuilder.BuildTemplateUrl(template)" alt="@template.FriendlyName" class="inspection-thumbnail" data-testid="template-row-preview" />
                             </td>
                             <td>
                                 <div class="inspection-file-cell">
-                                    <div class="fw-semibold">@template.FriendlyName</div>
-                                    <div class="text-muted small">@template.OriginalFileName</div>
+                                    <div class="fw-semibold" data-testid="template-row-name">@template.FriendlyName</div>
+                                    <div class="text-muted small" data-testid="template-row-file">@template.OriginalFileName</div>
                                 </div>
                             </td>
-                            <td>@(string.IsNullOrWhiteSpace(template.Description) ? "-" : template.Description)</td>
-                            <td>@template.TolerancePercent.ToString("0.##")%</td>
+                            <td data-testid="template-row-description">@(string.IsNullOrWhiteSpace(template.Description) ? "-" : template.Description)</td>
+                            <td data-testid="template-row-tolerance">@template.TolerancePercent.ToString("0.##")%</td>
                             <td>@template.CreatedAtUtc.LocalDateTime.ToString("g")</td>
                             <td>@FormatBytes(template.FileSizeBytes)</td>
                             <td class="text-end">
@@ -98,17 +98,19 @@ else
                                             class="btn btn-sm btn-outline-secondary inspection-row-menu-button"
                                             aria-label="Open actions"
                                             aria-expanded="@(openMenuTemplateId == template.Id)"
-                                            @onclick="() => ToggleMenu(template.Id)">
+                                            @onclick="() => ToggleMenu(template.Id)"
+                                            data-testid="template-row-actions-button">
                                         ...
                                     </button>
 
                                     @if (openMenuTemplateId == template.Id)
                                     {
-                                        <div class="inspection-row-menu" role="menu">
+                                        <div class="inspection-row-menu" role="menu" data-testid="template-row-menu">
                                             <button type="button"
                                                     class="dropdown-item text-danger"
                                                     role="menuitem"
-                                                    @onclick="() => PromptDelete(template)">
+                                                    @onclick="() => PromptDelete(template)"
+                                                    data-testid="template-delete-menuitem">
                                                 Delete
                                             </button>
                                         </div>
@@ -122,7 +124,7 @@ else
         </div>
 
         <div class="inspection-pagination">
-            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)" data-testid="templates-previous-page-button">
                 Previous
             </button>
 
@@ -131,13 +133,14 @@ else
                 {
                     <button type="button"
                             class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")"
-                            @onclick="() => GoToPage(pageNumber)">
+                            @onclick="() => GoToPage(pageNumber)"
+                            data-testid="templates-page-button">
                         @pageNumber
                     </button>
                 }
             </div>
 
-            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)" data-testid="templates-next-page-button">
                 Next
             </button>
         </div>
@@ -147,13 +150,13 @@ else
 @if (templatePendingDelete is not null)
 {
     <div class="inspection-modal-backdrop"></div>
-    <div class="inspection-modal-shell" role="dialog" aria-modal="true" aria-labelledby="delete-template-title">
+    <div class="inspection-modal-shell" role="dialog" aria-modal="true" aria-labelledby="delete-template-title" data-testid="template-delete-modal">
         <div class="inspection-modal-card">
             <h2 id="delete-template-title" class="h5 mb-2">Delete template</h2>
             <p class="text-muted mb-3">Delete <strong>@templatePendingDelete.FriendlyName</strong>? This action cannot be undone.</p>
             <div class="d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@isBusy">Cancel</button>
-                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isBusy">
+                <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@isBusy" data-testid="template-delete-cancel-button">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isBusy" data-testid="template-delete-confirm-button">
                     @(isBusy ? "Deleting..." : "Delete")
                 </button>
             </div>

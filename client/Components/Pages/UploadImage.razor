@@ -24,20 +24,20 @@
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
 {
-    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">
+    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert" data-testid="image-upload-status">
         @statusMessage
     </div>
 }
 
-<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" FormName="upload-image" class="inspection-form">
+<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" FormName="upload-image" class="inspection-form" data-testid="image-upload-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
     @if (templates.Count == 0)
     {
-        <div class="alert alert-warning" role="alert">
+        <div class="alert alert-warning" role="alert" data-testid="image-upload-no-template-alert">
             You need at least one template before uploading an image.
-            <a href="/templates/upload" class="alert-link">Upload a template</a>.
+            <a href="/templates/upload" class="alert-link" data-testid="image-upload-no-template-link">Upload a template</a>.
         </div>
     }
 
@@ -47,13 +47,14 @@
                    OnChange="HandleFileSelected"
                    accept="@AcceptedFileTypes"
                    multiple
-                   class="form-control" />
+                   class="form-control"
+                   data-testid="image-file-input" />
         <div class="form-text">You can add more files in multiple selections. The selected template applies to every image.</div>
 
         @if (uploadItems.Count > 0)
         {
             <div class="mt-3 table-responsive">
-                <table class="table table-sm align-middle">
+                <table class="table table-sm align-middle" data-testid="image-upload-drafts-table">
                     <thead>
                         <tr>
                             <th scope="col">File</th>
@@ -66,9 +67,9 @@
                     <tbody>
                         @foreach (var draft in uploadItems)
                         {
-                            <tr>
+                            <tr data-testid="image-upload-draft-row">
                                 <td>
-                                    <div class="fw-semibold">@draft.File.Name</div>
+                                    <div class="fw-semibold" data-testid="image-upload-draft-file-name">@draft.File.Name</div>
                                     <div class="text-muted small">@FormatBytes(draft.File.Size)</div>
                                 </td>
                                 <td style="min-width: 12rem;">
@@ -79,27 +80,29 @@
                                            step="0.01"
                                            value="@draft.ToleranceInput"
                                            disabled="@isSubmitting"
-                                           @oninput="args => HandleToleranceInput(draft, args.Value?.ToString())" />
+                                           @oninput="args => HandleToleranceInput(draft, args.Value?.ToString())"
+                                           data-testid="image-upload-draft-tolerance-input" />
                                     @if (draft.IsToleranceInherited)
                                     {
                                         <div class="form-text">Using template default.</div>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(draft.ValidationMessage))
                                     {
-                                        <div class="text-danger small">@draft.ValidationMessage</div>
+                                        <div class="text-danger small" data-testid="image-upload-draft-validation">@draft.ValidationMessage</div>
                                     }
                                 </td>
                                 <td style="min-width: 18rem;">
                                     <InputTextArea @bind-Value="draft.Description"
                                                    class="form-control"
                                                    rows="2"
-                                                   disabled="@isSubmitting" />
+                                                   disabled="@isSubmitting"
+                                                   data-testid="image-upload-draft-description-input" />
                                 </td>
                                 <td style="min-width: 16rem;">
-                                    <span class="badge rounded-pill @GetDraftBadgeClass(draft.State)">@GetDraftStateLabel(draft.State)</span>
+                                    <span class="badge rounded-pill @GetDraftBadgeClass(draft.State)" data-testid="image-upload-draft-state">@GetDraftStateLabel(draft.State)</span>
                                     @if (!string.IsNullOrWhiteSpace(draft.ResultMessage))
                                     {
-                                        <div class="small mt-1 @(draft.State == UploadDraftState.Failed ? "text-danger" : "text-muted")">
+                                        <div class="small mt-1 @(draft.State == UploadDraftState.Failed ? "text-danger" : "text-muted")" data-testid="image-upload-draft-result">
                                             @draft.ResultMessage
                                         </div>
                                     }
@@ -108,7 +111,8 @@
                                     <button type="button"
                                             class="btn btn-outline-danger btn-sm"
                                             disabled="@isSubmitting"
-                                            @onclick="() => RemoveDraft(draft.Id)">
+                                            @onclick="() => RemoveDraft(draft.Id)"
+                                            data-testid="image-upload-draft-remove-button">
                                         Remove
                                     </button>
                                 </td>
@@ -125,7 +129,8 @@
         <InputSelect id="template"
                      @bind-Value="model.TemplateId"
                      @bind-Value:after="HandleTemplateChanged"
-                     class="form-select">
+                     class="form-select"
+                     data-testid="image-template-select">
             <option value="">Select a template</option>
             @foreach (var template in templates)
             {
@@ -134,7 +139,7 @@
         </InputSelect>
         @if (selectedTemplate is not null)
         {
-            <div class="form-text">
+            <div class="form-text" data-testid="image-template-default-tolerance">
                 Default tolerance: @selectedTemplate.TolerancePercent.ToString("0.##")%
                 @if (!string.IsNullOrWhiteSpace(selectedTemplate.Description))
                 {
@@ -144,11 +149,11 @@
         }
     </div>
 
-    <button type="submit" class="btn btn-primary" disabled="@(isSubmitting || templates.Count == 0)">
+    <button type="submit" class="btn btn-primary" disabled="@(isSubmitting || templates.Count == 0)" data-testid="image-upload-submit-button">
         @(isSubmitting ? "Uploading images..." : "Upload images")
     </button>
-    <a href="/images" class="btn btn-link">View uploaded images</a>
-    <a href="/templates" class="btn btn-link">View templates</a>
+    <a href="/images" class="btn btn-link" data-testid="image-upload-view-images-link">View uploaded images</a>
+    <a href="/templates" class="btn btn-link" data-testid="image-upload-view-templates-link">View templates</a>
 </EditForm>
 
 @code {

@@ -4,7 +4,7 @@
 
 <div class="top-row navbar">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Quality Control</a>
+        <a class="navbar-brand" href="" data-testid="nav-brand">Quality Control</a>
     </div>
 </div>
 
@@ -13,7 +13,7 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" data-testid="nav-home-link">
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
             </NavLink>
         </div>
@@ -21,22 +21,22 @@
         <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="templates">
+                    <NavLink class="nav-link" href="templates" data-testid="nav-templates-link">
                         <span class="bi bi-grid-fill-nav-menu" aria-hidden="true"></span> Templates
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="images">
+                    <NavLink class="nav-link" href="images" data-testid="nav-images-link">
                         <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Inspected images
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="reports">
+                    <NavLink class="nav-link" href="reports" data-testid="nav-reports-link">
                         <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Reports
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Manage">
+                    <NavLink class="nav-link" href="Account/Manage" data-testid="nav-account-link">
                         <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
                     </NavLink>
                 </div>
@@ -44,7 +44,7 @@
                     <form action="Account/Logout" method="post">
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="@currentUrl" />
-                        <button type="submit" class="nav-link">
+                        <button type="submit" class="nav-link" data-testid="nav-logout-button">
                             <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
                         </button>
                     </form>
@@ -52,12 +52,12 @@
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
+                    <NavLink class="nav-link" href="Account/Register" data-testid="nav-register-link">
                         <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Login">
+                    <NavLink class="nav-link" href="Account/Login" data-testid="nav-login-link">
                         <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
                     </NavLink>
                 </div>

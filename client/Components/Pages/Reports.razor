@@ -22,10 +22,10 @@
     </div>
 </div>
 
-<form action="/reports" method="get" class="report-filter-bar">
+<form action="/reports" method="get" class="report-filter-bar" data-testid="reports-filter-form">
     <div class="report-filter-field">
         <label class="form-label" for="filter-template">Template</label>
-        <select name="templateId" id="filter-template" class="form-select form-select-sm">
+        <select name="templateId" id="filter-template" class="form-select form-select-sm" data-testid="reports-template-filter">
             <option value="">All</option>
             @foreach (var template in options.Templates)
             {
@@ -36,7 +36,7 @@
 
     <div class="report-filter-field">
         <label class="form-label" for="filter-model">Model</label>
-        <select name="modelName" id="filter-model" class="form-select form-select-sm">
+        <select name="modelName" id="filter-model" class="form-select form-select-sm" data-testid="reports-model-filter">
             <option value="">All</option>
             @foreach (var modelName in options.ModelNames)
             {
@@ -47,7 +47,7 @@
 
     <div class="report-filter-field">
         <label class="form-label" for="filter-processing">Processing Status</label>
-        <select name="processingStatus" id="filter-processing" class="form-select form-select-sm">
+        <select name="processingStatus" id="filter-processing" class="form-select form-select-sm" data-testid="reports-processing-filter">
             <option value="">All</option>
             @foreach (var status in Enum.GetValues<ProcessingStatus>())
             {
@@ -58,7 +58,7 @@
 
     <div class="report-filter-field">
         <label class="form-label" for="filter-outcome">Inspection Status</label>
-        <select name="outcomeStatus" id="filter-outcome" class="form-select form-select-sm">
+        <select name="outcomeStatus" id="filter-outcome" class="form-select form-select-sm" data-testid="reports-outcome-filter">
             <option value="">All</option>
             @foreach (var status in Enum.GetValues<OutcomeStatus>())
             {
@@ -70,35 +70,37 @@
     <div class="report-filter-field">
         <label class="form-label" for="filter-from">Uploaded From</label>
         <input type="date" name="uploadedFrom" id="filter-from" class="form-control form-control-sm"
-               value="@FilterUploadedFrom?.ToString("yyyy-MM-dd")" />
+               value="@FilterUploadedFrom?.ToString("yyyy-MM-dd")"
+               data-testid="reports-uploaded-from-filter" />
     </div>
 
     <div class="report-filter-field">
         <label class="form-label" for="filter-to">Uploaded To</label>
         <input type="date" name="uploadedTo" id="filter-to" class="form-control form-control-sm"
-               value="@FilterUploadedTo?.ToString("yyyy-MM-dd")" />
+               value="@FilterUploadedTo?.ToString("yyyy-MM-dd")"
+               data-testid="reports-uploaded-to-filter" />
     </div>
 
     <div class="report-filter-actions">
-        <button type="submit" class="btn btn-primary">View Report</button>
-        <a href="/reports" class="btn btn-link">Clear filters</a>
+        <button type="submit" class="btn btn-primary" data-testid="reports-apply-filters-button">View Report</button>
+        <a href="/reports" class="btn btn-link" data-testid="reports-clear-filters-link">Clear filters</a>
     </div>
 </form>
 
 @if (isLoading)
 {
-    <p>Loading reports...</p>
+    <p data-testid="reports-loading">Loading reports...</p>
 }
 else if (!string.IsNullOrWhiteSpace(loadError))
 {
-    <div class="alert alert-danger" role="alert">@loadError</div>
+    <div class="alert alert-danger" role="alert" data-testid="reports-load-error">@loadError</div>
 }
 else if (images.Count == 0)
 {
-    <div class="empty-state">
+    <div class="empty-state" data-testid="reports-empty-state">
         <h2>No images yet</h2>
         <p>Start by uploading image(s) for a report.</p>
-        <a href="/images/upload" class="btn btn-primary">Upload image</a>
+        <a href="/images/upload" class="btn btn-primary" data-testid="reports-empty-upload-link">Upload image</a>
     </div>
 }
 else
@@ -111,18 +113,18 @@ else
 
             <div class="inspection-page-size">
                 <label class="form-label mb-0" for="page-size">Rows per page</label>
-                <select id="page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged">
+                <select id="page-size" class="form-select form-select-sm" value="@pageSize" @onchange="HandlePageSizeChanged" data-testid="reports-page-size-select">
                     @foreach (var size in PageSizeOptions)
                     {
                         <option value="@size">@size</option>
                     }
                 </select>
-                <a href="@BuildExportUrl("csv")" class="btn btn-outline-primary btn-sm">Export CSV</a>
-                <a href="@BuildExportUrl("xlsx")" class="btn btn-primary btn-sm">Export XLSX</a>
+                <a href="@BuildExportUrl("csv")" class="btn btn-outline-primary btn-sm" data-testid="reports-export-csv-link">Export CSV</a>
+                <a href="@BuildExportUrl("xlsx")" class="btn btn-primary btn-sm" data-testid="reports-export-xlsx-link">Export XLSX</a>
             </div>
         </div>
 
-        <div class="info-card">
+        <div class="info-card" data-testid="reports-statistics">
             <h3>Statistics</h3>
             <p>Number of templates: @stats.TemplateCount</p>
             <p>Number of models: @stats.ModelCount</p>
@@ -146,12 +148,12 @@ else
 
         @if (filteredImages.Count == 0)
         {
-            <p class="text-muted">No results match the current filters.</p>
+            <p class="text-muted" data-testid="reports-no-filter-results">No results match the current filters.</p>
         }
         else
         {
             <div class="table-responsive">
-                <table class="table table-hover align-middle report-table">
+                <table class="table table-hover align-middle report-table" data-testid="reports-table">
                     <thead>
                         <tr>
                             <th scope="col" class="align-middle">Template</th>
@@ -168,21 +170,21 @@ else
                         @foreach (var image in PagedImages)
                         {
                             var modelResults = InspectionMlResultParser.ParseModelResults(image);
-                            <tr>
+                            <tr data-testid="report-row">
                                 <td>
-                                    <div>@(image.Template?.FriendlyName ?? "-")</div>
+                                    <div data-testid="report-row-template">@(image.Template?.FriendlyName ?? "-")</div>
                                 </td>
                                 <td>
-                                    <div>@image.OriginalFileName</div>
+                                    <div data-testid="report-row-image">@image.OriginalFileName</div>
                                 </td>
                                 <td>
-                                    <div>@image.ProcessingStatus</div>
+                                    <div data-testid="report-row-processing-status">@image.ProcessingStatus</div>
                                 </td>
                                 <td>
                                     <div>@image.CreatedAtUtc.LocalDateTime.ToString("g")</div>
                                 </td>
-                                <td>@image.MinimumSimilarityPercent.ToString("0.##")%</td>
-                                <td>
+                                <td data-testid="report-row-acceptance-similarity">@image.MinimumSimilarityPercent.ToString("0.##")%</td>
+                                <td data-testid="report-row-calculated-similarity">
                                     <table>
                                         <tbody>
                                             <tr>
@@ -201,9 +203,9 @@ else
                                     </table>
                                 </td>
                                 <td>
-                                    <span class="badge transparent-background inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)">@image.OutcomeStatus</span>
+                                    <span class="badge transparent-background inspection-outcome-badge @GetOutcomeBadgeClass(image.OutcomeStatus)" data-testid="report-row-outcome-status">@image.OutcomeStatus</span>
                                 </td>
-                                <td>
+                                <td data-testid="report-row-defects">
                                     <table>
                                         <tbody>
                                             <tr>
@@ -228,7 +230,7 @@ else
             </div>
 
             <div class="inspection-pagination">
-                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@(currentPage == 1)" data-testid="reports-previous-page-button">
                     Previous
                 </button>
 
@@ -237,13 +239,14 @@ else
                     {
                         <button type="button"
                                 class="btn btn-sm @(pageNumber == currentPage ? "btn-primary" : "btn-outline-secondary")"
-                                @onclick="() => GoToPage(pageNumber)">
+                                @onclick="() => GoToPage(pageNumber)"
+                                data-testid="reports-page-button">
                             @pageNumber
                         </button>
                     }
                 </div>
 
-                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@(currentPage == TotalPages)" data-testid="reports-next-page-button">
                     Next
                 </button>
             </div>
