@@ -12,13 +12,13 @@
     <div class="hero-actions">
         <AuthorizeView>
             <Authorized>
-                <a href="/templates/upload" class="btn btn-outline-secondary btn-lg">Upload template</a>
-                <a href="/images/upload" class="btn btn-outline-secondary btn-lg">Inspect image</a>
-                <a href="/images" class="btn btn-outline-secondary btn-lg">View inspected images</a>
+                <a href="/templates/upload" class="btn btn-outline-secondary btn-lg" data-testid="home-upload-template-link">Upload template</a>
+                <a href="/images/upload" class="btn btn-outline-secondary btn-lg" data-testid="home-upload-image-link">Inspect image</a>
+                <a href="/images" class="btn btn-outline-secondary btn-lg" data-testid="home-inspected-images-link">View inspected images</a>
             </Authorized>
             <NotAuthorized>
-                <a href="/Account/Login" class="btn btn-primary btn-lg">Sign in</a>
-                <a href="/Account/Register" class="btn btn-outline-secondary btn-lg">Create account</a>
+                <a href="/Account/Login" class="btn btn-primary btn-lg" data-testid="home-sign-in-link">Sign in</a>
+                <a href="/Account/Register" class="btn btn-outline-secondary btn-lg" data-testid="home-register-link">Create account</a>
             </NotAuthorized>
         </AuthorizeView>
     </div>

@@ -21,21 +21,21 @@
 
 @if (!string.IsNullOrWhiteSpace(statusMessage))
 {
-    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">
+    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert" data-testid="template-upload-status">
         @statusMessage
     </div>
 }
 
-<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" FormName="upload-template" class="inspection-form">
+<EditForm Model="model" OnValidSubmit="HandleSubmitAsync" FormName="upload-template" class="inspection-form" data-testid="template-upload-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
     <div class="mb-3">
         <label class="form-label" for="template-file">Template file</label>
-        <InputFile id="template-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" />
+        <InputFile id="template-file" OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg,.bmp,.webp" class="form-control" data-testid="template-file-input" />
         @if (selectedFile is not null)
         {
-            <div class="form-text">
+            <div class="form-text" data-testid="template-selected-file">
                 Selected: @selectedFile.Name (@FormatBytes(selectedFile.Size))
             </div>
         }
@@ -43,24 +43,24 @@
 
     <div class="mb-3">
         <label class="form-label" for="friendly-name">Friendly name</label>
-        <InputText id="friendly-name" @bind-Value="model.FriendlyName" class="form-control" />
+        <InputText id="friendly-name" @bind-Value="model.FriendlyName" class="form-control" data-testid="template-friendly-name-input" />
     </div>
 
     <div class="mb-3">
         <label class="form-label" for="template-tolerance">Similarity tolerance</label>
-        <InputNumber id="template-tolerance" @bind-Value="model.TolerancePercent" class="form-control" />
+        <InputNumber id="template-tolerance" @bind-Value="model.TolerancePercent" class="form-control" data-testid="template-tolerance-input" />
         <div class="form-text">This value will prefill the tolerance when a user selects the template during image upload.</div>
     </div>
 
     <div class="mb-3">
         <label class="form-label" for="template-description">Description</label>
-        <InputTextArea id="template-description" @bind-Value="model.Description" class="form-control" rows="4" />
+        <InputTextArea id="template-description" @bind-Value="model.Description" class="form-control" rows="4" data-testid="template-description-input" />
     </div>
 
-    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting" data-testid="template-upload-submit-button">
         @(isSubmitting ? "Uploading..." : "Upload template")
     </button>
-    <a href="/templates" class="btn btn-link">View templates</a>
+    <a href="/templates" class="btn btn-link" data-testid="template-upload-view-templates-link">View templates</a>
 </EditForm>
 
 @code {

@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "label-inspection-functional-tests"
+version = "0.1.0"
+description = "Blackbox BDD functional tests for the Label Inspection Blazor app."
+authors = ["Label Inspection System"]
+readme = "README.md"
+packages = [{ include = "core" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pytest = "^8.3.4"
+pytest-bdd = "^8.1.0"
+pytest-html = "^4.1.1"
+playwright = "^1.49.1"
+python-dotenv = "^1.0.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+bdd_features_base_dir = "tests/features"
+markers = [
+    "ml: scenarios that wait for ML-backed inspection completion",
+    "export: scenarios that validate report downloads",
+]
