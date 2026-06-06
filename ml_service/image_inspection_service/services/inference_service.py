@@ -7,6 +7,13 @@ from image_inspection_service.ml.defect_detection import detect_defects
 
 from image_inspection_service.core import startup
 
+from time import perf_counter
+
+from image_inspection_service.schemas.performance import (
+    RequestMetrics,
+    ModelMetrics
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,20 +23,27 @@ CACHE_MAX_SIZE = 25
 
 
 def process_request(request):
+    metrics = RequestMetrics(image_id=request.image_id)
+
     try:
-        print(f"Processing inspection request for image_id: {request.image_id}")
+        logger.info(f"Processing inspection request for image_id: {request.image_id}")
 
         # -----------------------------
         # TEMPLATE HANDLING (WITH CACHE)
         # -----------------------------
 
-        print(f"Downloading template and extracting features if not in cache from URL: {request.template_url}")
+        logger.info(f"Downloading template and extracting features if not in cache from URL: {request.template_url}")
 
         if request.template_url not in template_cache:
 
             logger.info(f"Downloading template image from URL: {request.template_url}")
+            start = perf_counter()
             template_img = download_image(request.template_url)
 
+            metrics.template_download_ms = (
+                perf_counter() - start
+            ) * 1000
+            
             if template_img is None:
                 raise RuntimeError("Template image is None")
 
@@ -63,22 +77,26 @@ def process_request(request):
         template_img = template_data["image"]
         template_features_per_model = template_data["features_by_model"]
 
-        print("Template and features loaded from cache successfully.")
+        logger.info("Template and features loaded from cache successfully.")
 
         # -----------------------------
         # DOWNLOAD INSPECTED IMAGE
         # -----------------------------
 
-        print(f"Downloading image from URL: {request.image_url}")
+        logger.info(f"Downloading image from URL: {request.image_url}")
+        start = perf_counter()
         image = download_image(request.image_url)
+        metrics.image_download_ms = (
+            perf_counter() - start
+        ) * 1000
 
         if image is None:
             raise RuntimeError("Inspected image is None")
 
-        print(f"Image downloaded successfully for image_id: {request.image_id}")
+        logger.info(f"Image downloaded successfully for image_id: {request.image_id}")
 
         # resize to match template
-        print("Resizing image based on template size")
+        logger.info("Resizing image based on template size")
         image = image.resize(template_img.size)
 
         # -----------------------------
@@ -90,7 +108,10 @@ def process_request(request):
         for name, extractor in startup.extractors.items():
 
             logger.info(f"Processing model: {name}")
-
+            model_metrics = ModelMetrics(
+                model=name
+            )
+            
             try:
                 template_features = template_features_per_model.get(name)
 
@@ -100,21 +121,31 @@ def process_request(request):
                 # -----------------------------
                 # FEATURE EXTRACTION
                 # -----------------------------
+                start = perf_counter()
                 inspected_features = extractor.extract(image)
+                model_metrics.feature_extraction_ms = (
+                    perf_counter() - start
+                ) * 1000
 
                 # -----------------------------
                 # SIMILARITY
                 # -----------------------------
+                start = perf_counter()
                 similarity = cosine_similarity(template_features, inspected_features)
-
+                model_metrics.similarity_ms = (
+                    perf_counter() - start
+                ) * 1000
                 logger.info(f"{name}: similarity={similarity:.4f}")
 
                 # -----------------------------
                 # DEFECT DETECTION
                 # -----------------------------
+                start = perf_counter()
                 defects = detect_defects(template_img, image)
-
-                print(f"{name}: defects found={len(defects)}")
+                model_metrics.defect_detection_ms = (
+                    perf_counter() - start
+                ) * 1000
+                logger.info(f"{name}: defects found={len(defects)}")
 
                 results.append({
                     "model": name,
@@ -123,6 +154,8 @@ def process_request(request):
                     "defects": defects,
                     "status": "completed"
                 })
+
+                metrics.model_metrics.append(model_metrics)
 
             except Exception as e:
 
@@ -163,7 +196,7 @@ def process_request(request):
             ]
         }
     
-    return result;
+    return result, metrics;
 
 def _cleanup_expired_cache():
     now = time.time()

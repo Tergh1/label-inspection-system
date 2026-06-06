@@ -12,6 +12,7 @@ from image_inspection_service.workers.queue_worker import (
     run_worker,
     shutdown_event
 )
+from image_inspection_service.services.report_service import generate_report
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
     for w in workers:
         w.join(timeout=5)
 
-
+    generate_report()
+    
 app = FastAPI(lifespan=lifespan)
 app.include_router(router)

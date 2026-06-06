@@ -1,0 +1,18 @@
+ML SERVICE PERFORMANCE REPORT
+==================================================
+
+Total Requests: 12
+Average Request Duration: 310.88 ms
+
+Average Template Download Duration: 17.07 ms
+
+Average Image Download Duration: 53.58 ms
+
+ResNet Average Feature Extraction: 47.85 ms
+EfficientNet Average Feature Extraction: 61.47 ms
+
+Similarity Computation Average: 0.18 ms
+
+Defect Detection Average: 25.74 ms
+
+Webhook Sending Duration Average: 41.82 ms
