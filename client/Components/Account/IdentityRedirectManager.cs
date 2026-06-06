@@ -33,6 +33,10 @@ internal sealed class IdentityRedirectManager(NavigationManager navigationManage
     }
 
     [DoesNotReturn]
+    public void RedirectToPostLogin(string? uri)
+        => RedirectTo(GetPostLoginRedirectUri(uri));
+
+    [DoesNotReturn]
     public void RedirectTo(string uri, Dictionary<string, object?> queryParameters)
     {
         var uriWithoutQuery = navigationManager.ToAbsoluteUri(uri).GetLeftPart(UriPartial.Path);
@@ -55,4 +59,36 @@ internal sealed class IdentityRedirectManager(NavigationManager navigationManage
     [DoesNotReturn]
     public void RedirectToCurrentPageWithStatus(string message, HttpContext context)
         => RedirectToWithStatus(CurrentPath, message, context);
+
+    private string? GetPostLoginRedirectUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+        {
+            return uri;
+        }
+
+        var relativeUri = Uri.IsWellFormedUriString(uri, UriKind.Relative)
+            ? uri
+            : navigationManager.ToBaseRelativePath(uri);
+
+        var queryStart = relativeUri.IndexOf('?');
+        var fragmentStart = relativeUri.IndexOf('#');
+        var pathEnd = (queryStart, fragmentStart) switch
+        {
+            (>= 0, >= 0) => Math.Min(queryStart, fragmentStart),
+            (>= 0, _) => queryStart,
+            (_, >= 0) => fragmentStart,
+            _ => relativeUri.Length
+        };
+
+        var path = relativeUri[..pathEnd].TrimStart('/');
+        if (!path.StartsWith("reports/export", StringComparison.OrdinalIgnoreCase))
+        {
+            return relativeUri;
+        }
+
+        return queryStart >= 0
+            ? $"reports{relativeUri[queryStart..]}"
+            : "reports";
+    }
 }

@@ -93,7 +93,7 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(ReturnUrl);
+            RedirectManager.RedirectToPostLogin(ReturnUrl);
         }
         else if (result.RequiresTwoFactor)
         {
