@@ -13,7 +13,7 @@ PROJECT_ROOT = ROOT_DIR.parent
 
 @dataclass(frozen=True)
 class Settings:
-    base_url: str = "http://localhost:7108"
+    base_url: str = "https://localhost:7107"
     headless: bool = True
     slow_mo_ms: int = 0
     default_timeout_ms: int = 10_000

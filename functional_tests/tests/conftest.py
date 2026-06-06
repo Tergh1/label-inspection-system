@@ -30,7 +30,8 @@ def browser(settings: Settings) -> Browser:
 
 @pytest.fixture
 def page(browser: Browser, settings: Settings) -> Page:
-    context = browser.new_context(base_url=settings.base_url)
+    context = browser.new_context(base_url=settings.base_url,
+                                  ignore_https_errors=True)
     page = context.new_page()
     page.set_default_timeout(settings.default_timeout_ms)
     yield page
