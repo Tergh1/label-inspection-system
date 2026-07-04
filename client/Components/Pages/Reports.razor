@@ -29,7 +29,7 @@
             <option value="">All</option>
             @foreach (var template in options.Templates)
             {
-                <option value="@template.Id" selected="@(FilterTemplateId == template.Id)">@template.FriendlyName</option>
+                <option value="@template.Id" selected="@(FilterTemplateId == template.Id)" class="fit-to-lines-name" >@template.FriendlyName</option>
             }
         </select>
     </div>
@@ -175,7 +175,7 @@ else
                                     <div data-testid="report-row-template">@(image.Template?.FriendlyName ?? "-")</div>
                                 </td>
                                 <td>
-                                    <div data-testid="report-row-image">@image.OriginalFileName</div>
+                                    <div data-testid="report-row-image" style="fit-to-lines-name">@image.OriginalFileName</div>
                                 </td>
                                 <td>
                                     <div data-testid="report-row-processing-status">@image.ProcessingStatus</div>

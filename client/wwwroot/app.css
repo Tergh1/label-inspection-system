@@ -606,4 +606,11 @@ h1:focus {
     .inspection-defect-image {
         max-height: calc(94vh - 12rem);
     }
+
+    .fit-to-lines-name {
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }

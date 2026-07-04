@@ -3,11 +3,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from core.config.settings import PROJECT_ROOT
+from core.config.settings import ROOT_DIR
 
 
 def sample_file(name: str) -> str:
-    path = PROJECT_ROOT / "models" / "Pharmacy" / name
+    path = ROOT_DIR / "models" / "Pharmacy" / name
     if not path.exists():
         raise FileNotFoundError(f"Sample file not found: {path}")
     return str(path)

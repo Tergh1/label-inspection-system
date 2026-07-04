@@ -22,4 +22,4 @@ Feature: Upload image
 
   Scenario: Invalid image tolerance is rejected
     When I submit the image upload form with invalid tolerance
-    Then I should see an image upload error containing "Tolerance must be between 0 and 100"
+    Then I should see an image upload field error containing "Value must be less than or equal to 100."

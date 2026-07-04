@@ -335,10 +335,13 @@ def submit_image_with_invalid_tolerance(page: Page, settings: Settings) -> None:
     upload_page.open()
     upload_page.submit_with_invalid_tolerance(sample_file("template_defect.png"))
 
-
 @then(parsers.parse('I should see an image upload error containing "{text}"'))
 def image_upload_error(page: Page, settings: Settings, text: str) -> None:
     UploadImagePage(page, settings.base_url).expect_error(text)
+
+@then(parsers.parse('I should see an image upload field error containing "{text}"'))
+def image_upload_error(page: Page, settings: Settings, text: str) -> None:
+    UploadImagePage(page, settings.base_url).expect_uploaded_image_tolerance_error(text)
 
 
 @when("I open the reports page")

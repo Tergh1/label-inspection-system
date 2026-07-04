@@ -35,3 +35,10 @@ class UploadImagePage(BasePage):
 
     def expect_error(self, text: str) -> None:
         expect(self.page.locator("[role='alert'], .validation-message, .text-danger")).to_contain_text(text)
+    
+    def expect_uploaded_image_tolerance_error(self, text: str) -> None:
+        tolerance_locator = self.page.get_by_test_id("image-upload-draft-tolerance-input")
+        expect(tolerance_locator).to_be_visible(timeout=20000)
+        error_message = tolerance_locator.evaluate("el => el.validationMessage")
+
+        assert error_message == text, f"Expected tolerance input error message to be '{text}', but got '{error_message}'"

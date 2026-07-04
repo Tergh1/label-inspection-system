@@ -124,3 +124,17 @@
         overflow-y: auto;
     }
 }
+
+.text-truncate-custom {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.nav-user-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    width: 100%;
+}
