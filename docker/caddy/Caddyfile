@@ -1,0 +1,6 @@
+# Automatic HTTPS via Let's Encrypt. Caddy obtains and renews the cert for
+# $DOMAIN, terminates TLS, and reverse-proxies to the Blazor client container.
+# HTTP (port 80) is auto-redirected to HTTPS.
+{$DOMAIN} {
+	reverse_proxy client:8080
+}

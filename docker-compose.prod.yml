@@ -1,0 +1,100 @@
+# Production stack for a single VPS (Hetzner CX22 or similar, ~4GB RAM).
+# HTTP on the server IP. Bring up with:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      # consumed by the init script to create the ml_service_user role
+      ML_DB_PASSWORD: ${ML_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-prod:/docker-entrypoint-initdb.d:ro
+    # Not published to the host — only reachable on the internal compose network.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ml_service:
+    build:
+      context: .
+      dockerfile: ml_service/Dockerfile
+    container_name: lis-ml
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ml_service_user:${ML_DB_PASSWORD}@postgres:5432/ml_inspection
+      ML_SERVICE_API_KEY: ${INSPECTION_ML_API_KEY}
+      CLIENT_X_WEBHOOK_SECRET: ${INSPECTION_WEBHOOK_SECRET}
+      TEMPLATE_IMAGE_PATH: models/template.png
+      LOG_LEVEL: INFO
+    # Internal only — the client reaches it at http://ml_service:8000
+    expose:
+      - "8000"
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: lis-client
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      # Honor X-Forwarded-Proto/For from Caddy so the app knows requests are HTTPS
+      # (correct redirects, secure cookies, no HttpsRedirection loop).
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=label_inspection_identity;Username=postgres;Password=${POSTGRES_PASSWORD}
+      # ML service is on the internal network
+      InspectionMl__BaseUrl: http://ml_service:8000
+      # Public base URL used to build the image/webhook URLs the ML service fetches.
+      # Now served over HTTPS via Caddy; reachable from browser AND containers.
+      InspectionMl__PublicAppBaseUrl: https://${DOMAIN}
+      InspectionMl__ApiKey: ${INSPECTION_ML_API_KEY}
+      InspectionMl__WebhookSecret: ${INSPECTION_WEBHOOK_SECRET}
+    # No published ports — only reachable via Caddy on the internal network.
+    expose:
+      - "8080"
+    volumes:
+      - app_data:/app/App_Data
+      # Persist ASP.NET DataProtection keys so users stay logged in / antiforgery
+      # tokens survive container recreation and redeploys.
+      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: lis-caddy
+    restart: unless-stopped
+    depends_on:
+      - client
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # persists Let's Encrypt certs across restarts
+      - caddy_config:/config
+
+volumes:
+  postgres_data:
+  app_data:
+  dataprotection_keys:
+  caddy_data:
+  caddy_config:
